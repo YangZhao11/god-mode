@@ -54,6 +54,20 @@
   :group 'god
   :type 'string)
 
+(defcustom god-mode-translate-alist
+  '(("C-x C-1" . "C-x 1")
+   ("C-x C-2" . "C-x 2")
+   ("C-x C-3" . "C-x 3")
+   ("C-x C-4" . "C-x 4")
+   ("C-x C-5" . "C-x 5")
+   ("C-x C-6" . "C-x 6")
+   ("C-x C-8" . "C-x 8")
+   ("C-x C-9" . "C-x 9")
+   ("C-x C-0" . "C-x 0"))
+  "Translation table for god-mode command keys"
+  :group 'god
+  :type '(alist))
+
 (defcustom god-exempt-major-modes
   '(dired-mode
     grep-mode
@@ -229,9 +243,14 @@ appropriate). Append to keysequence."
                ;; given
                (string-prefix-p "C-" next-modifier))
       (setq next-modifier (concat next-modifier "S-")))
-    (if key-string-so-far
+    (god-mode-maybe-translate
+     (if key-string-so-far
         (concat key-string-so-far " " next-modifier next-key)
-      (concat next-modifier next-key))))
+      (concat next-modifier next-key)))))
+
+(defun god-mode-maybe-translate (key-string)
+  (or (cdr (assoc key-string god-mode-translate-alist))
+      key-string))
 
 (defun god-mode-lookup-command (key-string)
   "Execute extended keymaps such as C-c, or if it is a command,
