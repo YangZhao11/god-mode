@@ -55,16 +55,17 @@
   :type 'string)
 
 (defcustom god-mode-translate-alist
-  '(("C-x C-1" . "C-x 1")
-   ("C-x C-2" . "C-x 2")
-   ("C-x C-3" . "C-x 3")
-   ("C-x C-4" . "C-x 4")
-   ("C-x C-5" . "C-x 5")
-   ("C-x C-6" . "C-x 6")
-   ("C-x C-8" . "C-x 8")
-   ("C-x C-9" . "C-x 9")
-   ("C-x C-0" . "C-x 0"))
-  "Translation table for god-mode command keys"
+  '(("C-x C-1" "C-x 1")
+    ("C-x C-2" "C-x 2")
+    ("C-x C-3" "C-x 3")
+    ("C-x C-4" "C-x 4" t)
+    ("C-x C-5" "C-x 5" t)
+    ("C-x C-6" "C-x 6" t)
+    ("C-x C-8" "C-x 8" t)
+    ("C-x C-9" "C-x 9")
+    ("C-x C-0" "C-x 0"))
+  "Translation table for god-mode command keys. A third element
+means to treat the literal key as pressed."
   :group 'god
   :type '(alist))
 
@@ -249,8 +250,11 @@ appropriate). Append to keysequence."
       (concat next-modifier next-key)))))
 
 (defun god-mode-maybe-translate (key-string)
-  (or (cdr (assoc key-string god-mode-translate-alist))
-      key-string))
+  (let ((translation (cdr (assoc key-string god-mode-translate-alist))))
+    (if (not translation)
+        key-string
+      (setq god-literal-sequence (cadr translation))
+      (car translation))))
 
 (defun god-mode-lookup-command (key-string)
   "Execute extended keymaps such as C-c, or if it is a command,
