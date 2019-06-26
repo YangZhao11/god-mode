@@ -247,6 +247,31 @@ Also you can use `god-mode-translate-alist` like this:
 
 So that you can run `x1`/`x2`/`x3`/`x0` in god-mode.
 
+## Working with special modes
+
+In special modes like `dired`, it would be helpful if local bindings
+are respected for some keys. This functionality is provided by
+`god-mode-low-priority`. For example:
+
+``` lisp
+(define-key god-local-mode-map (kbd "q") 'god-mode-low-priority)
+```
+Then in `dired` mode, key `q` will call `quit-window` (bound to `q`),
+instead of `quoted-insert` (bound to `C-q`).
+
+It can also be helpful to bind `x` to `god-mode-self-insert` for all
+special modes, so that commands like `x 1` work without switching on
+`god-mode`:
+
+``` lisp
+(define-key special-mode-map (kbd "x") 'god-mode-self-insert)
+;; tabulated-list-mode initializes weirdly.
+(define-key tabulated-list-mode-map (kbd "x") 'god-mode-self-insert)
+```
+
+Some modes like `dired` or `package-list-mode` use `x` for an
+"execution" command, which will shadow the binding above.
+
 ## Global god-mode and exempt major modes
 
 **Note:** This is less necessary in recent god-mode, as god-mode
