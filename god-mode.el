@@ -69,6 +69,12 @@ means to treat the literal key as pressed."
   :group 'god
   :type '(alist))
 
+(defcustom god-mode-low-priority-exempt
+  '(c-electric-lt-gt c-electric-brace)
+  "Commands that do not trigger for `god-mode-low-priority'."
+  :group 'god
+  :type '(repeat symbol))
+
 (defcustom god-exempt-major-modes
   '(dired-mode
     grep-mode
@@ -268,6 +274,24 @@ call it."
            (god-mode-lookup-key-sequence nil key-string))
           (:else
            (error "God: Unknown key binding for `%s`" key-string)))))
+
+(defun god-mode-low-priority ()
+  "Honor local binding first, then call `god-mode-self-insert'."
+  (interactive)
+  (let* ((keys (this-command-keys))
+         (binding (local-key-binding keys)))
+    (cond ((and binding
+                (commandp binding t)
+                (not (memq binding god-mode-low-priority-exempt)))
+           (setq binding (or (command-remapping binding) binding))
+           (setq this-original-command binding)
+           (setq this-command binding)
+           ;; `real-this-command' is used by emacs to populate
+           ;; `last-repeatable-command', which is used by `repeat'.
+           (setq real-this-command binding)
+           (call-interactively binding))
+          (:else
+           (call-interactively 'god-mode-self-insert)))))
 
 ;;;###autoload
 (defun god-mode-maybe-activate (&optional status)
