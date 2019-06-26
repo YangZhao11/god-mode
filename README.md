@@ -113,6 +113,24 @@ This library defines the following mapping:
 
   * `uco` → `C-u C-c C-o`
 
+## Translation map
+
+In addition to the default mapping, you can add exceptions to
+this rule by customizing `god-mode-translate-alist`. The key of this
+list is an ordinary key sequence. For example,
+if you have `("C-x C-1" "C-x 1")` in the list, press `x 1` will
+trigger command bound to `C-x 1`, instead of `C-x C-1`.
+
+This rebinding also works on prefixes. If a third element is `t`, for
+the remainder of sequence keys will be interpreted literally. For
+example, if you have `("C-x C-4" "C-x 4" t)` in the alist, press
+`x 4 d` will trigger command `dired-other-window`, bound to `C-x 4 d`.
+
+It can also be useful to change the default modifier to some keys,
+e.g. having `("C-;" "M-;")` allows you to press `;` for
+`comment-dwim`, bound to `M-;`.
+
+
 ## Cursor style to indicate mode
 
 You can change the cursor style indicate whether you're in God mode or
@@ -212,13 +230,19 @@ Although I personally prefer:
 
 Feel free to alter and customize as you prefer.
 
-Also handy are these:
+Also you can use `god-mode-translate-alist` like this:
 
 ``` lisp
-(global-set-key (kbd "C-x C-1") 'delete-other-windows)
-(global-set-key (kbd "C-x C-2") 'split-window-below)
-(global-set-key (kbd "C-x C-3") 'split-window-right)
-(global-set-key (kbd "C-x C-0") 'delete-window)
+(setq god-mode-translate-alist
+  '(("C-x C-1" "C-x 1")
+    ("C-x C-2" "C-x 2")
+    ("C-x C-3" "C-x 3")
+    ("C-x C-4" "C-x 4" t)
+    ("C-x C-5" "C-x 5" t)
+    ("C-x C-6" "C-x 6" t)
+    ("C-x C-8" "C-x 8" t)
+    ("C-x C-9" "C-x 9")
+    ("C-x C-0" "C-x 0")))
 ```
 
 So that you can run `x1`/`x2`/`x3`/`x0` in god-mode.
