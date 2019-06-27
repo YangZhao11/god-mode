@@ -186,7 +186,8 @@ enabled. See also `god-local-mode-resume'."
     (let ((binding (local-key-binding key)))
       (if (and binding
                (commandp binding t)
-               (not (memq binding god-mode-low-priority-exempt)))
+               (not (memq binding god-mode-low-priority-exempt))
+               (not (eq binding 'god-mode-self-insert)))
           binding))))
 
 (defun god-mode-self-insert ()
