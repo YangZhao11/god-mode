@@ -251,10 +251,10 @@ So that you can run `x1`/`x2`/`x3`/`x0` in god-mode.
 
 In special modes like `dired`, it would be helpful if local bindings
 are respected for some keys. This functionality is provided by
-`god-mode-low-priority`. For example:
+`god-mode-low-priority-keys`. For example:
 
 ``` lisp
-(define-key god-local-mode-map (kbd "q") 'god-mode-low-priority)
+(setq god-mode-low-priority-keys '("q"))
 ```
 Then in `dired` mode, key `q` will call `quit-window` (bound to `q`),
 instead of `quoted-insert` (bound to `C-q`).
