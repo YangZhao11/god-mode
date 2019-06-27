@@ -108,3 +108,9 @@ Feature: C- commands
     And I go to end of buffer
     And I send the key sequence "C-c S-<left>"
     Then the cursor should be at point "1"
+
+  Scenario: "x 1" is translated to "C-x 1" (space)
+    Given I bind "C-x 1" to "beginning-of-buffer"
+    And I go to end of buffer
+    And I send the key sequence "x 1"
+    Then the cursor should be at point "1"
