@@ -70,10 +70,20 @@ means to treat the literal key as pressed."
   :type '(alist))
 
 (defcustom god-mode-low-priority-exempt
-  '(c-electric-lt-gt c-electric-brace)
+  '(self-insert-command c-electric-lt-gt c-electric-brace)
   "Commands that do not trigger for `god-mode-low-priority'."
   :group 'god
   :type '(repeat symbol))
+
+(defcustom god-mode-is-low-priority nil
+  "Whether god-mode should look for local bindings first"
+  :group 'god
+  :type '(boolean))
+
+(defcustom god-mode-low-priority-keys '()
+  "List of keys that should be low priority"
+  :group 'god
+  :type '(repeat character))
 
 (defcustom god-exempt-major-modes
   '(dired-mode
@@ -169,12 +179,23 @@ enabled. See also `god-local-mode-resume'."
 (define-key universal-argument-map (kbd "u")
   #'god-mode-maybe-universal-argument-more)
 
+(defun god-mode-maybe-local-binding (key)
+  "Return a local binding when key is low priority"
+  (when (or god-mode-is-low-priority
+            (member key god-mode-low-priority-keys))
+    (let ((binding (local-key-binding key)))
+      (if (and binding
+               (commandp binding t)
+               (not (memq binding god-mode-low-priority-exempt)))
+          binding))))
+
 (defun god-mode-self-insert ()
   "Handle self-insert keys."
   (interactive)
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
-         (binding (god-mode-lookup-key-sequence initial-key)))
+         (binding (or (god-mode-maybe-local-binding (char-to-string initial-key))
+                      (god-mode-lookup-key-sequence initial-key))))
     (when (god-mode-upper-p initial-key)
       (setq this-command-keys-shift-translated t))
     (setq this-original-command binding)
@@ -274,24 +295,6 @@ call it."
            (god-mode-lookup-key-sequence nil key-string))
           (:else
            (error "God: Unknown key binding for `%s`" key-string)))))
-
-(defun god-mode-low-priority ()
-  "Honor local binding first, then call `god-mode-self-insert'."
-  (interactive)
-  (let* ((keys (this-command-keys))
-         (binding (local-key-binding keys)))
-    (cond ((and binding
-                (commandp binding t)
-                (not (memq binding god-mode-low-priority-exempt)))
-           (setq binding (or (command-remapping binding) binding))
-           (setq this-original-command binding)
-           (setq this-command binding)
-           ;; `real-this-command' is used by emacs to populate
-           ;; `last-repeatable-command', which is used by `repeat'.
-           (setq real-this-command binding)
-           (call-interactively binding))
-          (:else
-           (call-interactively 'god-mode-self-insert)))))
 
 ;;;###autoload
 (defun god-mode-maybe-activate (&optional status)
