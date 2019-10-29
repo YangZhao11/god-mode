@@ -54,6 +54,12 @@
   :group 'god
   :type 'string)
 
+(defcustom god-mode-can-omit-literal-key
+  nil
+  "When non-nil, user can omit the literal key when unambiguous."
+  :group 'god
+  :type 'bool)
+
 (defcustom god-mode-translate-alist
   '(("C-x C-1" "C-x 1")
     ("C-x C-2" "C-x 2")
@@ -76,7 +82,9 @@ means to treat the literal key as pressed."
   :type '(repeat symbol))
 
 (defcustom god-mode-is-low-priority nil
-  "Whether god-mode should look for local bindings first"
+  "Whether god-mode should look for local bindings first. This
+overrides settings for individual keys in
+`god-mode-low-priority-keys'."
   :group 'god
   :type '(boolean))
 
@@ -221,11 +229,28 @@ if `key' is nil). This function sometimes
 recurses. `key-string-so-far' should be nil for the first call in
 the sequence."
   (interactive)
-  (let ((sanitized-key
-         (god-mode-sanitized-key-string
-          (or key (read-event key-string-so-far)))))
-    (god-mode-lookup-command
-     (key-string-after-consuming-key sanitized-key key-string-so-far))))
+  (let* ((sanitized-key
+          (god-mode-sanitized-key-string
+           (or key (read-event key-string-so-far))))
+         (key-string
+          (key-string-after-consuming-key sanitized-key key-string-so-far))
+         (binding (god-mode-lookup-command key-string 't))
+         alt-key-string)
+    (if binding binding
+      (setq alt-key-string (god-mode-alternative-key-string key-string))
+      (or (and alt-key-string (god-mode-lookup-command alt-key-string 't))
+          (user-error "God: Unknown key binding for `%s`" key-string)))))
+
+(defun god-mode-alternative-key-string (key-string)
+  "Returns an alternative key by assuming god-literal-key was
+  pressed right before the last keystroke."
+  (when god-mode-can-omit-literal-key
+    (let ((alt-key-string
+           (replace-regexp-in-string " C-\\([^ ]+\\)$" " \\1" key-string)))
+      (when (and (not (string= alt-key-string key-string))
+               (key-binding (read-kbd-macro alt-key-string t)))
+        (setq god-literal-sequence 't)
+        alt-key-string))))
 
 (defun god-mode-sanitized-key-string (key)
   "Convert any special events to textual."
@@ -284,9 +309,9 @@ appropriate). Append to keysequence."
       (setq god-literal-sequence (cadr translation))
       (car translation))))
 
-(defun god-mode-lookup-command (key-string)
+(defun god-mode-lookup-command (key-string &optional allow-retry)
   "Execute extended keymaps such as C-c, or if it is a command,
-call it."
+call it. If allow-retry is true, do not signal error but return nil instead."
   (let* ((key-vector (read-kbd-macro key-string t))
          (binding (key-binding key-vector)))
     (cond ((commandp binding)
@@ -294,6 +319,7 @@ call it."
            binding)
           ((keymapp binding)
            (god-mode-lookup-key-sequence nil key-string))
+          (allow-retry nil)
           (:else
            (error "God: Unknown key binding for `%s`" key-string)))))
 

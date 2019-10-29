@@ -113,6 +113,17 @@ This library defines the following mapping:
 
   * `uco` → `C-u C-c C-o`
 
+## Omitting the `SPC` key
+
+Optionally, you can omit the literal key (`SPC`) in unambiguous situations with
+
+```lisp
+(setq god-mode-can-omit-literal-key 't)
+```
+With this setting, key sequence `x1` will be interpreted to `C-x 1` instead of `C-x C-1`,
+provided the latter is not bound to anything while the former is. This also
+works on prefixes, e.g. `x4o` is interpreted as `C-x 4 o`.
+
 ## Translation map
 
 In addition to the default mapping, you can add exceptions to
@@ -127,9 +138,10 @@ example, if you have `("C-x C-4" "C-x 4" t)` in the alist, press
 `x 4 d` will trigger command `dired-other-window`, bound to `C-x 4 d`.
 
 It can also be useful to change the default modifier to some keys,
-e.g. having `("C-;" "M-;")` allows you to press `;` for
-`comment-dwim`, bound to `M-;`.
+for example:
 
+* `("C-;" "M-;")` allows you to press `;` for `comment-dwim`, bound to `M-;`.
+* `("C-#" "C-x #")` allows you to press `#` for `server-edit`.
 
 ## Cursor style to indicate mode
 
@@ -222,7 +234,7 @@ The following customizations are popular:
 (define-key god-local-mode-map (kbd "i") 'god-local-mode)
 ```
 
-Although I personally prefer:
+Although this can be more relatable for some people:
 
 ``` lisp
 (define-key god-local-mode-map (kbd ".") 'repeat)
@@ -230,22 +242,9 @@ Although I personally prefer:
 
 Feel free to alter and customize as you prefer.
 
-Also you can use `god-mode-translate-alist` like this:
-
-``` lisp
-(setq god-mode-translate-alist
-  '(("C-x C-1" "C-x 1")
-    ("C-x C-2" "C-x 2")
-    ("C-x C-3" "C-x 3")
-    ("C-x C-4" "C-x 4" t)
-    ("C-x C-5" "C-x 5" t)
-    ("C-x C-6" "C-x 6" t)
-    ("C-x C-8" "C-x 8" t)
-    ("C-x C-9" "C-x 9")
-    ("C-x C-0" "C-x 0")))
-```
-
-So that you can run `x1`/`x2`/`x3`/`x0` in god-mode.
+Also you consider customizing `god-mode-translate-alist` and
+`god-mode-can-omit-literal-key` from above, so that you can run
+`x1`/`x2`/`x3`/`x0` in god-mode.
 
 ## Working with special modes
 
