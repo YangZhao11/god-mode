@@ -70,8 +70,8 @@
     ("C-x C-8" "C-x 8" t)
     ("C-x C-9" "C-x 9")
     ("C-x C-0" "C-x 0"))
-  "Translation table for god-mode command keys. A third element
-means to treat the literal key as pressed."
+  "Translation table for god-mode command keys.
+A third element means to treat the literal key as pressed."
   :group 'god
   :type '(alist))
 
@@ -82,14 +82,14 @@ means to treat the literal key as pressed."
   :type '(repeat symbol))
 
 (defcustom god-mode-is-low-priority nil
-  "Whether god-mode should look for local bindings first. This
-overrides settings for individual keys in
+  "Whether god-mode should look for local bindings first.
+This overrides settings for individual keys in
 `god-mode-low-priority-keys'."
   :group 'god
   :type '(boolean))
 
 (defcustom god-mode-low-priority-keys '()
-  "List of keys that should be low priority"
+  "List of keys that should be low priority."
   :group 'god
   :type '(repeat character))
 
@@ -180,15 +180,18 @@ enabled. See also `god-local-mode-resume'."
   (if god-local-mode
       (call-interactively #'universal-argument-more)
     (let ((binding (god-mode-lookup-command "u")))
-      (if (commandp binding t)
-          (call-interactively binding)
-        (execute-kbd-macro binding)))))
+      (if binding
+          (if (commandp binding t)
+              (call-interactively binding)
+            (execute-kbd-macro binding))
+        (user-error "God: Unknown key binding for `%s'"
+                    (concat (cdr (assq nil god-mod-alist)) "u"))))))
 
 (define-key universal-argument-map (kbd "u")
   #'god-mode-maybe-universal-argument-more)
 
 (defun god-mode-maybe-local-binding (key)
-  "Return a local binding when key is low priority"
+  "Return a local binding when KEY is low priority"
   (when (or god-mode-is-low-priority
             (member key god-mode-low-priority-keys))
     (let ((binding (local-key-binding key)))
@@ -218,35 +221,37 @@ enabled. See also `god-local-mode-resume'."
       (execute-kbd-macro binding))))
 
 (defun god-mode-upper-p (char)
-  "Is the given char upper case?"
+  "Is the given CHAR upper case?"
   (and (>= char ?A)
        (<= char ?Z)
        (/= char ?G)))
 
 (defun god-mode-lookup-key-sequence (&optional key key-string-so-far)
-  "Lookup the command for the given `key' (or the next keypress,
-if `key' is nil). This function sometimes
-recurses. `key-string-so-far' should be nil for the first call in
-the sequence."
+  "Lookup the command for the given KEY.
+If KEY is nil, read the next keypress. This function sometimes recurses.
+KEY-STRING-SO-FAR should be nil for the first call in the
+sequence."
   (interactive)
   (let* ((sanitized-key
           (god-mode-sanitized-key-string
            (or key (read-event key-string-so-far))))
          (key-string
           (key-string-after-consuming-key sanitized-key key-string-so-far))
-         (binding (god-mode-lookup-command key-string 't))
+         (binding (god-mode-lookup-command key-string))
          alt-key-string)
     (if binding binding
       (setq alt-key-string (god-mode-alternative-key-string key-string))
-      (or (and alt-key-string (god-mode-lookup-command alt-key-string 't))
-          (user-error "God: Unknown key binding for `%s`" key-string)))))
+      (or (and alt-key-string (god-mode-lookup-command alt-key-string))
+          (user-error "God: Unknown key binding for `%s'" key-string)))))
 
 (defun god-mode-alternative-key-string (key-string)
-  "Returns an alternative key by assuming god-literal-key was
-  pressed right before the last keystroke."
+  "Return an alternative key of KEY-STRING by assuming
+  `god-literal-key' was pressed right before the last keystroke."
   (when god-mode-can-omit-literal-key
     (let ((alt-key-string
-           (replace-regexp-in-string " C-\\([^ ]+\\)$" " \\1" key-string)))
+           (replace-regexp-in-string
+            (concat " " (cdr (assq nil god-mod-alist)) "\\([^ ]+\\)$")
+            " \\1" key-string)))
       (when (and (not (string= alt-key-string key-string))
                (key-binding (read-kbd-macro alt-key-string t)))
         (setq god-literal-sequence 't)
@@ -303,25 +308,25 @@ appropriate). Append to keysequence."
       (concat next-modifier next-key)))))
 
 (defun god-mode-maybe-translate (key-string)
+  "Translate KEY-STRING according to `god-mode-translate-alist'."
   (let ((translation (cdr (assoc key-string god-mode-translate-alist))))
     (if (not translation)
         key-string
       (setq god-literal-sequence (cadr translation))
       (car translation))))
 
-(defun god-mode-lookup-command (key-string &optional allow-retry)
-  "Execute extended keymaps such as C-c, or if it is a command,
-call it. If allow-retry is true, do not signal error but return nil instead."
+(defun god-mode-lookup-command (key-string)
+  "Resolve key binding for KEY-STRING.
+This function recursively call `god-mode-lookup-key-sequence'. If
+a command is not found, return nil, otherwise return the
+command."
   (let* ((key-vector (read-kbd-macro key-string t))
          (binding (key-binding key-vector)))
     (cond ((commandp binding)
            (setq last-command-event (aref key-vector (- (length key-vector) 1)))
            binding)
           ((keymapp binding)
-           (god-mode-lookup-key-sequence nil key-string))
-          (allow-retry nil)
-          (:else
-           (error "God: Unknown key binding for `%s`" key-string)))))
+           (god-mode-lookup-key-sequence nil key-string)))))
 
 ;;;###autoload
 (defun god-mode-maybe-activate (&optional status)
