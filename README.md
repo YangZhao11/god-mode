@@ -10,12 +10,10 @@ insertion mode.
 
 In the example below you can see how much effort is reduced:
 
-    Before: C-p C-k C-n M-^ ) C-j C-y M-r C-x z z M-2 M-g M-g C-x C-s
-    After:    p   k   n g ^ )   j   y g r     . .   2   g   g   x   s
+    Before: C-p C-k C-n M-^ C-j C-y M-r C-x z z M-2 C-x C-s
+    After:    p   k   n   ^   j   y g r     z z   2   x   s
 
-(Regarding `.` see
-[nice keybindings](https://github.com/chrisdone/god-mode#nice-keybindings)
-section.)
+(Regarding `^` and `z` see [nice keybindings](#nice-keybindings) section.)
 
 You'll find that this mode comes surprisingly naturally and that you
 already know how to run your existing Emacs commands.
@@ -115,14 +113,16 @@ This library defines the following mapping:
 
 ## Omitting the `SPC` key
 
-Optionally, you can omit the literal key (`SPC`) in unambiguous situations with
+Optionally, you can omit the literal key (`SPC`) in unambiguous situations:
 
 ```lisp
 (setq god-mode-can-omit-literal-key 't)
 ```
-With this setting, key sequence `x1` will be interpreted to `C-x 1` instead of `C-x C-1`,
-provided the latter is not bound to anything while the former is. This also
-works on prefixes, e.g. `x4o` is interpreted as `C-x 4 o`.
+
+With this setting, key sequence `x1` will be interpreted to `C-x 1`
+instead of `C-x C-1`, provided the latter is not bound to anything
+while the former is. This also works on prefixes, e.g. `x4o` is
+interpreted as `C-x 4 o`.
 
 ## Translation map
 
@@ -240,11 +240,38 @@ Although this can be more relatable for some people:
 (define-key god-local-mode-map (kbd ".") 'repeat)
 ```
 
+Alternatively, to obey `god-mode-low-priority-keys`, use
+
+```lisp
+(add-to-list god-mode-translate-alist '("C-z" "C-x z"))
+```
+for the same effect of binding `z` to `repeat`.
+
 Feel free to alter and customize as you prefer.
 
-Also you consider customizing `god-mode-translate-alist` and
-`god-mode-can-omit-literal-key` from above, so that you can run
-`x1`/`x2`/`x3`/`x0` in god-mode.
+Also consider `(setq god-mode-can-omit-literal-key 't)`,
+so that you can run `x1`/`x2`/`x3`/`x0` in god-mode.
+
+Emacs generally do not bind to "Ctrl-symbol" keys, as they do not work
+over terminal. It is useful to translate these to "M-symbol" keys
+instead. The config I use:
+
+```lisp
+(setq god-mode-translate-alist
+      '(;; C-[ is a prefix key (ESC), remap here.
+        ("C-x C-[" "C-x [") ;;("C-x C-]" "C-x ]")
+        ;; use bracket for navigation
+        ("C-[" "C-M-a") ("C-]" "C-M-e")
+        ;; one-key command that makes most sense
+        ("C-`" "C-x `") ("C-#" "C-x #") ("C-z" "C-x z")
+        ;; C-i is interpreted as TAB, remap here.
+        ("M-g C-i" "M-g i")
+        ;; one-key command that maps to M-?
+        ("C-~" "M-~") ("C-!" "M-!") ("C-@" "M-@") ("C-$" "M-$") ("C-%" "M-%")
+        ("C-^" "M-^") ("C-&" "M-&") ("C-*" "M-*") ("C-{" "M-{") ("C-}" "M-}")
+        ("C-<" "M-<") ("C->" "M->") ("C-:" "M-:") ("C-|" "M-|") ("C-\\" "M-\\")
+        ("C-+" "M-+") ("C-=" "M-=") ("C-?" "M-?")))
+```
 
 ## Working with special modes
 
@@ -253,7 +280,7 @@ are respected for some keys. This functionality is provided by
 `god-mode-low-priority-keys`. For example:
 
 ``` lisp
-(setq god-mode-low-priority-keys '("q"))
+(setq god-mode-low-priority-keys '(?q))
 ```
 Then in `dired` mode, key `q` will call `quit-window` (bound to `q`),
 instead of `quoted-insert` (bound to `C-q`).
