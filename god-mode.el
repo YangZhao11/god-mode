@@ -190,11 +190,11 @@ enabled. See also `god-local-mode-resume'."
 (define-key universal-argument-map (kbd "u")
   #'god-mode-maybe-universal-argument-more)
 
-(defun god-mode-maybe-local-binding (key)
-  "Return a local binding when KEY is low priority"
+(defun god-mode-maybe-local-binding (initial-key)
+  "Return a local binding when INITIAL-KEY is low priority"
   (when (or god-mode-is-low-priority
-            (member key god-mode-low-priority-keys))
-    (let ((binding (local-key-binding key)))
+            (memq initial-key god-mode-low-priority-keys))
+    (let ((binding (local-key-binding (char-to-string initial-key))))
       (if (and binding
                (commandp binding t)
                (not (memq binding god-mode-low-priority-exempt))
@@ -206,7 +206,7 @@ enabled. See also `god-local-mode-resume'."
   (interactive)
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
-         (binding (or (god-mode-maybe-local-binding (char-to-string initial-key))
+         (binding (or (god-mode-maybe-local-binding initial-key)
                       (god-mode-lookup-key-sequence initial-key))))
     (when (god-mode-upper-p initial-key)
       (setq this-command-keys-shift-translated t))
