@@ -1,3 +1,4 @@
+; -*- coding: utf-8; lexical-binding: t -*-
 ;;; god-mode.el --- God-like command entering minor mode
 
 ;; Copyright (C) 2013 Chris Done
@@ -242,6 +243,7 @@ sequence."
     (if binding binding
       (setq alt-key-string (god-mode-alternative-key-string key-string))
       (or (and alt-key-string (god-mode-lookup-command alt-key-string))
+          (god-mode-help-func key-string)
           (user-error "God: Unknown key binding for `%s'" key-string)))))
 
 (defun god-mode-alternative-key-string (key-string)
@@ -256,6 +258,24 @@ sequence."
                (key-binding (read-kbd-macro alt-key-string t)))
         (setq god-literal-sequence 't)
         alt-key-string))))
+
+(defun god-mode--remove-trailing-help-char (key-string)
+  "Remove trailing help char from KEY-STRING."
+  (replace-regexp-in-string
+   (concat " "
+           (if god-literal-sequence "" (cdr (assq nil god-mod-alist)))
+           (char-to-string help-char)
+           "$")
+   "" key-string))
+
+(defun god-mode-help-func (key-string)
+  "Returns a function, when called, show help on the prefix. If
+KEY-STRING does not end on a help char, then return nil."
+  (let ((prefix (god-mode--remove-trailing-help-char key-string)))
+    (when (not (string= prefix key-string))
+    (lambda ()
+      (interactive)
+      (describe-bindings (read-kbd-macro prefix))))))
 
 (defun god-mode-sanitized-key-string (key)
   "Convert any special events to textual."
@@ -345,9 +365,9 @@ command."
 Members of the `god-exempt-major-modes' list are exempt."
   (memq major-mode god-exempt-major-modes))
 
-(defun god-mode-child-of-p (major-mode parent-mode)
-  "Return non-nil if MAJOR-MODE is derived from PARENT-MODE."
-  (let ((parent (get major-mode 'derived-mode-parent)))
+(defun god-mode-child-of-p (mode parent-mode)
+  "Return non-nil if MODE is derived from PARENT-MODE."
+  (let ((parent (get mode 'derived-mode-parent)))
     (cond ((eq parent parent-mode))
           ((not (null parent))
            (god-mode-child-of-p parent parent-mode))
