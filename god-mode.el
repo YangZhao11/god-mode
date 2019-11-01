@@ -1,5 +1,4 @@
-; -*- coding: utf-8; lexical-binding: t -*-
-;;; god-mode.el --- God-like command entering minor mode
+;;; god-mode.el --- God-like command entering minor mode -*- coding: utf-8; lexical-binding: t -*-
 
 ;; Copyright (C) 2013 Chris Done
 ;; Copyright (C) 2013 Magnar Sveen
@@ -135,15 +134,15 @@ All predicates must return nil for god-local-mode to start."
     (run-hooks 'god-mode-disabled-hook)))
 
 (defun god-local-mode-pause ()
-  "Pause god-mode local to the buffer, if it's
-enabled. See also `god-local-mode-resume'."
+  "Pause `god-mode' local to the buffer, if it's enabled.
+See also `god-local-mode-resume'."
   (when god-local-mode
     (god-local-mode -1)
     (setq god-local-mode-paused t)))
 
 (defun god-local-mode-resume ()
-  "Will re-enable god-mode, if it was active when
-`god-local-mode-pause' was called. If not, nothing happens."
+  "Re-enable `god-mode', if it was paused by `god-local-mode-pause'.
+If not, nothing happens."
   (when (bound-and-true-p god-local-mode-paused)
     (setq god-local-mode-paused nil)
     (god-local-mode 1)))
@@ -192,7 +191,7 @@ enabled. See also `god-local-mode-resume'."
   #'god-mode-maybe-universal-argument-more)
 
 (defun god-mode--maybe-local-binding (initial-key)
-  "Return a local binding when INITIAL-KEY is low priority"
+  "Return a local binding when INITIAL-KEY is low priority."
   (when (or god-mode-is-low-priority
             (memq initial-key god-mode-low-priority-keys))
     (let ((binding (local-key-binding (char-to-string initial-key))))
@@ -237,7 +236,7 @@ sequence."
           (god-mode-sanitized-key-string
            (or key (read-event key-string-so-far))))
          (key-string
-          (god-mode-read-key-string sanitized-key key-string-so-far))
+          (god-mode-interpret-key sanitized-key key-string-so-far))
          (binding (god-mode-lookup-command key-string))
          alt-key-string)
     (if binding binding
@@ -247,8 +246,8 @@ sequence."
           (user-error "God: Unknown key binding for `%s'" key-string)))))
 
 (defun god-mode--maybe-omit-literal-key (key-string)
-  "Return an alternative key of KEY-STRING by assuming
-  `god-literal-key' was pressed right before the last keystroke."
+  "Interpret KEY-STRING as if the last key was literal.
+If the last key has explicit modifier, return nil."
   (when god-mode-can-omit-literal-key
     (let ((alt-key-string
            (replace-regexp-in-string
@@ -269,8 +268,9 @@ sequence."
    "" key-string))
 
 (defun god-mode-help-func (key-string)
-  "Returns a function, when called, show help on the prefix. If
-KEY-STRING does not end on a help char, then return nil."
+  "Return a command, when called, show help on the prefix.
+
+If KEY-STRING does not end on a help char, then return nil."
   (let ((prefix (god-mode--remove-trailing-help-char key-string)))
     (when (not (string= prefix key-string))
     (lambda ()
@@ -278,7 +278,7 @@ KEY-STRING does not end on a help char, then return nil."
       (describe-bindings (read-kbd-macro prefix))))))
 
 (defun god-mode-sanitized-key-string (key)
-  "Convert any special events to textual."
+  "Convert any special KEY to textual."
   (cl-case key
     (tab "TAB")
     (?\  "SPC")
@@ -292,9 +292,11 @@ KEY-STRING does not end on a help char, then return nil."
     (return "RET")
     (t (char-to-string key))))
 
-(defun god-mode-read-key-string (key key-string-so-far)
-  "Interpret god-mode special keys for key (consumes more keys if
-appropriate). Append to keysequence."
+(defun god-mode-interpret-key (key key-string-so-far)
+  "Interpret god-mode special keys for KEY.
+
+Will consume more keys if appropriate, e.g. when KEY is ?g.
+KEY-STRING-SO-FAR should contain keys already entered, like \"C-x\"."
   (let ((key-consumed t) (next-modifier "") next-key)
     (message key-string-so-far)
     (cond
