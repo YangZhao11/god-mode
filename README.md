@@ -6,6 +6,19 @@ This is a global minor mode for entering Emacs commands without
 modifier keys. It's similar to Vim's separation of commands and
 insertion mode.
 
+## What's new
+
+- Added `god-mode-low-priority-keys` that allows certain keys to
+  trigger local bindings in special modes like `dired`. See [Working
+  with special modes](#working-with-special-modes).
+- Added `god-mode-translate-alist`. This allows exceptions from our
+  regular mapping. See [Translation Map](#translation-map).
+- Added `god-mode-can-omit-literal-key`. When non-nil, you can omit
+  the `SPC` key in unambiguous cases. See [Omitting the `SPC`
+  key](#omitting-the-spc-key).
+- Pressing `C-h` (see `help-char`) will show help on key bindings from
+  the prefix already entered, akin to regular Emacs.
+
 ## Example
 
 In the example below you can see how much effort is reduced:
