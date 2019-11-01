@@ -191,7 +191,7 @@ enabled. See also `god-local-mode-resume'."
 (define-key universal-argument-map (kbd "u")
   #'god-mode-maybe-universal-argument-more)
 
-(defun god-mode-maybe-local-binding (initial-key)
+(defun god-mode--maybe-local-binding (initial-key)
   "Return a local binding when INITIAL-KEY is low priority"
   (when (or god-mode-is-low-priority
             (memq initial-key god-mode-low-priority-keys))
@@ -207,7 +207,7 @@ enabled. See also `god-local-mode-resume'."
   (interactive)
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
-         (binding (or (god-mode-maybe-local-binding initial-key)
+         (binding (or (god-mode--maybe-local-binding initial-key)
                       (god-mode-lookup-key-sequence initial-key))))
     (when (god-mode-upper-p initial-key)
       (setq this-command-keys-shift-translated t))
@@ -237,16 +237,16 @@ sequence."
           (god-mode-sanitized-key-string
            (or key (read-event key-string-so-far))))
          (key-string
-          (key-string-after-consuming-key sanitized-key key-string-so-far))
+          (god-mode-read-key-string sanitized-key key-string-so-far))
          (binding (god-mode-lookup-command key-string))
          alt-key-string)
     (if binding binding
-      (setq alt-key-string (god-mode-alternative-key-string key-string))
+      (setq alt-key-string (god-mode--maybe-omit-literal-key key-string))
       (or (and alt-key-string (god-mode-lookup-command alt-key-string))
           (god-mode-help-func key-string)
           (user-error "God: Unknown key binding for `%s'" key-string)))))
 
-(defun god-mode-alternative-key-string (key-string)
+(defun god-mode--maybe-omit-literal-key (key-string)
   "Return an alternative key of KEY-STRING by assuming
   `god-literal-key' was pressed right before the last keystroke."
   (when god-mode-can-omit-literal-key
@@ -292,7 +292,7 @@ KEY-STRING does not end on a help char, then return nil."
     (return "RET")
     (t (char-to-string key))))
 
-(defun key-string-after-consuming-key (key key-string-so-far)
+(defun god-mode-read-key-string (key key-string-so-far)
   "Interpret god-mode special keys for key (consumes more keys if
 appropriate). Append to keysequence."
   (let ((key-consumed t) (next-modifier "") next-key)
