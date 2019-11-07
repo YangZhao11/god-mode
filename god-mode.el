@@ -236,26 +236,25 @@ sequence."
   (let* ((sanitized-key
           (god-mode-sanitized-key-string
            (or key (read-event key-string-so-far))))
-         (key-string
-          (god-mode-read-key-string sanitized-key key-string-so-far))
+         (key-list (god-mode-read-key-list sanitized-key key-string-so-far))
+         (key-string (god-mode-maybe-translate (apply 'concat key-list)))
          (binding (god-mode-lookup-command key-string))
          alt-key-string)
     (if binding binding
-      (setq alt-key-string (god-mode--maybe-omit-literal-key key-string))
+      (setq alt-key-string (god-mode--maybe-omit-literal-key key-list))
       (or (and alt-key-string (god-mode-lookup-command alt-key-string))
-          (god-mode-help-func key-string)
+          (god-mode-help-func key-list)
           (user-error "God: Unknown key binding for `%s'" key-string)))))
 
-(defun god-mode--maybe-omit-literal-key (key-string)
-  "Return an alternative key of KEY-STRING by assuming
+(defun god-mode--maybe-omit-literal-key (key-list)
+  "Return an alternative key string of KEY-LIST by assuming
   `god-literal-key' was pressed right before the last keystroke."
-  (when god-mode-can-omit-literal-key
-    (let ((alt-key-string
-           (replace-regexp-in-string
-            (concat " " (cdr (assq nil god-mod-alist)) "\\([^ ]+\\)$")
-            " \\1" key-string)))
-      (when (and (not (string= alt-key-string key-string))
-               (key-binding (read-kbd-macro alt-key-string t)))
+  (when (and god-mode-can-omit-literal-key
+             (not (string= "" (cadr key-list))))
+    (let* ((alt-key-string
+            (concat (car key-list) (caddr key-list)))
+           (key-binding (read-kbd-macro alt-key-string t)))
+      (when key-binding
         (setq god-literal-sequence 't)
         alt-key-string))))
 
@@ -268,11 +267,12 @@ sequence."
            "$")
    "" key-string))
 
-(defun god-mode-help-func (key-string)
+(defun god-mode-help-func (key-list)
   "Returns a function, when called, show help on the prefix. If
-KEY-STRING does not end on a help char, then return nil."
-  (let ((prefix (god-mode--remove-trailing-help-char key-string)))
-    (when (not (string= prefix key-string))
+KEY-LIST does not end on a help char, then return nil."
+  (let ((prefix (car key-list)))
+    (when (and prefix
+               (string= (char-to-string help-char) (caddr key-list)))
     (lambda ()
       (interactive)
       (describe-bindings (read-kbd-macro prefix))))))
@@ -292,9 +292,9 @@ KEY-STRING does not end on a help char, then return nil."
     (return "RET")
     (t (char-to-string key))))
 
-(defun god-mode-read-key-string (key key-string-so-far)
+(defun god-mode-read-key-list (key key-string-so-far)
   "Interpret god-mode special keys for key (consumes more keys if
-appropriate). Append to keysequence."
+appropriate). Returns a list of (prefix modifier key)."
   (let ((key-consumed t) (next-modifier "") next-key)
     (message key-string-so-far)
     (cond
@@ -322,10 +322,9 @@ appropriate). Append to keysequence."
                ;; given
                (string-prefix-p "C-" next-modifier))
       (setq next-modifier (concat next-modifier "S-")))
-    (god-mode-maybe-translate
-     (if key-string-so-far
-        (concat key-string-so-far " " next-modifier next-key)
-      (concat next-modifier next-key)))))
+    (list (if key-string-so-far (concat key-string-so-far " "))
+          next-modifier
+          next-key)))
 
 (defun god-mode-maybe-translate (key-string)
   "Translate KEY-STRING according to `god-mode-translate-alist'."
