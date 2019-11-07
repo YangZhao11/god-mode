@@ -1,5 +1,4 @@
-; -*- coding: utf-8; lexical-binding: t -*-
-;;; god-mode.el --- God-like command entering minor mode
+;;; god-mode.el --- God-like command entering minor mode -*- coding: utf-8; lexical-binding: t -*-
 
 ;; Copyright (C) 2013 Chris Done
 ;; Copyright (C) 2013 Magnar Sveen
@@ -135,15 +134,15 @@ All predicates must return nil for god-local-mode to start."
     (run-hooks 'god-mode-disabled-hook)))
 
 (defun god-local-mode-pause ()
-  "Pause god-mode local to the buffer, if it's
-enabled. See also `god-local-mode-resume'."
+  "Pause `god-mode' local to the buffer, if it's enabled.
+See also `god-local-mode-resume'."
   (when god-local-mode
     (god-local-mode -1)
     (setq god-local-mode-paused t)))
 
 (defun god-local-mode-resume ()
-  "Will re-enable god-mode, if it was active when
-`god-local-mode-pause' was called. If not, nothing happens."
+  "Re-enable `god-mode', if it was paused by `god-local-mode-pause'.
+If not, nothing happens."
   (when (bound-and-true-p god-local-mode-paused)
     (setq god-local-mode-paused nil)
     (god-local-mode 1)))
@@ -192,7 +191,7 @@ enabled. See also `god-local-mode-resume'."
   #'god-mode-maybe-universal-argument-more)
 
 (defun god-mode--maybe-local-binding (initial-key)
-  "Return a local binding when INITIAL-KEY is low priority"
+  "Return a local binding when INITIAL-KEY is low priority."
   (when (or god-mode-is-low-priority
             (memq initial-key god-mode-low-priority-keys))
     (let ((binding (local-key-binding (char-to-string initial-key))))
@@ -278,7 +277,7 @@ KEY-LIST does not end on a help char, then return nil."
       (describe-bindings (read-kbd-macro prefix))))))
 
 (defun god-mode-sanitized-key-string (key)
-  "Convert any special events to textual."
+  "Convert any special KEY to textual."
   (cl-case key
     (tab "TAB")
     (?\  "SPC")
