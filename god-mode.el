@@ -257,24 +257,14 @@ sequence."
         (setq god-literal-sequence 't)
         alt-key-string))))
 
-(defun god-mode--remove-trailing-help-char (key-string)
-  "Remove trailing help char from KEY-STRING."
-  (replace-regexp-in-string
-   (concat " "
-           (if god-literal-sequence "" (cdr (assq nil god-mod-alist)))
-           (char-to-string help-char)
-           "$")
-   "" key-string))
-
 (defun god-mode-help-func (key-list)
   "Returns a function, when called, show help on the prefix. If
 KEY-LIST does not end on a help char, then return nil."
   (let ((prefix (car key-list)))
     (when (and prefix
                (string= (char-to-string help-char) (caddr key-list)))
-    (lambda ()
-      (interactive)
-      (describe-bindings (read-kbd-macro prefix))))))
+      (describe-bindings (read-kbd-macro prefix))
+      #'ignore)))
 
 (defun god-mode-sanitized-key-string (key)
   "Convert any special KEY to textual."
