@@ -239,15 +239,15 @@ sequence."
          (key-string (god-mode-maybe-translate (apply 'concat key-list)))
          (binding (god-mode-lookup-command key-string))
          alt-key-string)
-    (if binding binding
-      (setq alt-key-string (god-mode--maybe-omit-literal-key key-list))
-      (or (and alt-key-string (god-mode-lookup-command alt-key-string))
-          (god-mode-help-func key-list)
-          (user-error "God: Unknown key binding for `%s'" key-string)))))
+    (or binding
+        (and (setq alt-key-string (god-mode--maybe-omit-literal-key key-list))
+             (god-mode-lookup-command alt-key-string))
+        (god-mode-help-func key-list)
+        (user-error "God: Unknown key binding for `%s'" key-string))))
 
 (defun god-mode--maybe-omit-literal-key (key-list)
   "Return an alternative key string of KEY-LIST by assuming
-  `god-literal-key' was pressed right before the last keystroke."
+`god-literal-key' was pressed right before the last keystroke."
   (when (and god-mode-can-omit-literal-key
              (not (string= "" (cadr key-list))))
     (let* ((alt-key-string
@@ -258,8 +258,9 @@ sequence."
         alt-key-string))))
 
 (defun god-mode-help-func (key-list)
-  "Returns a function, when called, show help on the prefix. If
-KEY-LIST does not end on a help char, then return nil."
+  "Show help on the prefix if KEY-LIST end with `help-char'.
+
+If help is shown, return the `ignore' command, otherwise return nil."
   (let ((prefix (car key-list)))
     (when (and prefix
                (string= (char-to-string help-char) (caddr key-list)))
@@ -282,8 +283,10 @@ KEY-LIST does not end on a help char, then return nil."
     (t (char-to-string key))))
 
 (defun god-mode-read-key-list (key key-string-so-far)
-  "Interpret god-mode special keys for key (consumes more keys if
-appropriate). Returns a list of (prefix modifier key)."
+  "Interpret KEY in god-mode, consumes more keys if appropriate.
+
+KEY-STRING-SO-FAR is a string description of keys already
+entered. Returns a list of (prefix modifier key)."
   (let ((key-consumed t) (next-modifier "") next-key)
     (message key-string-so-far)
     (cond
