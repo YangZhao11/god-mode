@@ -180,7 +180,7 @@ If not, nothing happens."
   (interactive)
   (if god-local-mode
       (call-interactively #'universal-argument-more)
-    (let ((binding (god-mode-lookup-command "u")))
+    (let ((binding (god-mode-lookup-command (make-god-mode-k :prefix "u"))))
       (if binding
           (if (commandp binding t)
               (call-interactively binding)
@@ -246,6 +246,18 @@ If not, nothing happens."
       (setf (god-mode-k-binding k) key-binding)
       key-string)))
 
+(defun god-mode-k-sanitized-read (k)
+  (let* ((key (god-mode-k-key k))
+         (sanitized-key
+          (god-mode-sanitized-key-string
+           (or key (read-event (god-mode-k-prefix k))))))
+    (setf (god-mode-k-key k) sanitized-key)
+    (setf (god-mode-k-trace k)
+          (concat (god-mode-k-trace k) " " sanitized-key))
+    (setf (god-mode-k-binding k) nil)
+    (setf (god-mode-k-modifier k) nil)
+    sanitized-key))
+
 (defun god-mode-lookup-key-sequence (k)
   "Lookup the command for K.
 
@@ -255,18 +267,15 @@ the sequence."
   (interactive)
   (let* ((key (god-mode-k-key k))
          (key-string-so-far (god-mode-k-prefix k))
-         (sanitized-key
-          (god-mode-sanitized-key-string
-           (or key (read-event key-string-so-far))))
+         (sanitized-key (god-mode-k-sanitized-read k))
          key-string)
-    (setq k (god-mode-interpret-k
-             (make-god-mode-k :key sanitized-key :prefix  key-string-so-far)))
+    (god-mode-interpret-k k)
     (setq key-string (god-mode-k-regular-key-string k))
     (or key-string
         (god-mode--maybe-omit-literal-key k)
         (god-mode-help-func k))
     (if (god-mode-k-binding k)
-        (god-mode-lookup-command (god-mode-k-prefix k))
+        (god-mode-lookup-command k)
       (user-error "God: Unknown key binding for `%s'" key-string))))
 
 (defun god-mode--maybe-omit-literal-key (k)
@@ -354,18 +363,19 @@ appropriate). Returns a list of (prefix modifier key)."
       (setq god-literal-sequence (cadr translation))
       (car translation))))
 
-(defun god-mode-lookup-command (key-string)
+(defun god-mode-lookup-command (k)
   "Resolve key binding for KEY-STRING.
 This function recursively call `god-mode-lookup-key-sequence'. If
 a command is not found, return nil, otherwise return the
 command."
-  (let* ((key-vector (read-kbd-macro key-string t))
+  (let* ((key-string (god-mode-k-prefix k))
+         (key-vector (read-kbd-macro key-string t))
          (binding (key-binding key-vector)))
     (cond ((commandp binding)
            (setq last-command-event (aref key-vector (- (length key-vector) 1)))
            binding)
           ((keymapp binding)
-           (god-mode-lookup-key-sequence (make-god-mode-k :prefix  key-string))))))
+           (god-mode-lookup-key-sequence k)))))
 
 ;;;###autoload
 (defun god-mode-maybe-activate (&optional status)
