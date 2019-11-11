@@ -34,6 +34,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'cl-macs)
 
 (add-hook 'after-change-major-mode-hook 'god-mode-maybe-activate)
 
@@ -190,6 +191,8 @@ If not, nothing happens."
 (define-key universal-argument-map (kbd "u")
   #'god-mode-maybe-universal-argument-more)
 
+(cl-defstruct god-mode-k key modifier prefix binding trace)
+
 (defun god-mode--maybe-local-binding (initial-key)
   "Return a local binding when INITIAL-KEY is low priority."
   (when (or god-mode-is-low-priority
@@ -207,7 +210,7 @@ If not, nothing happens."
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
          (binding (or (god-mode--maybe-local-binding initial-key)
-                      (god-mode-lookup-key-sequence initial-key))))
+                      (god-mode-lookup-key-sequence (make-god-mode-k :key initial-key)))))
     (when (god-mode-upper-p initial-key)
       (setq this-command-keys-shift-translated t))
     (setq this-original-command binding)
@@ -226,45 +229,71 @@ If not, nothing happens."
        (<= char ?Z)
        (/= char ?G)))
 
-(defun god-mode-lookup-key-sequence (&optional key key-string-so-far)
-  "Lookup the command for the given KEY.
-If KEY is nil, read the next keypress. This function sometimes recurses.
-KEY-STRING-SO-FAR should be nil for the first call in the
-sequence."
+(defun god-mode-k-regular-key-string (k)
+  (let* ((key-string
+          (if (god-mode-k-prefix k)
+              (concat (god-mode-k-prefix k) " "
+                      (god-mode-k-modifier k)
+                      (god-mode-k-key k))
+            (concat (god-mode-k-modifier k)
+                    (god-mode-k-key k))))
+         (s (god-mode-maybe-translate key-string))
+         (key-binding (key-binding (read-kbd-macro s t))))
+    (when key-binding
+      (setf (god-mode-k-prefix k) s)
+      (setf (god-mode-k-modifier k) nil)
+      (setf (god-mode-k-key k) nil)
+      (setf (god-mode-k-binding k) key-binding)
+      key-string)))
+
+(defun god-mode-lookup-key-sequence (k)
+  "Lookup the command for K.
+
+If key is nil, read the next keypress. This function sometimes
+recurses. prefix should be nil for the first call in
+the sequence."
   (interactive)
-  (let* ((sanitized-key
+  (let* ((key (god-mode-k-key k))
+         (key-string-so-far (god-mode-k-prefix k))
+         (sanitized-key
           (god-mode-sanitized-key-string
            (or key (read-event key-string-so-far))))
-         (key-list (god-mode-read-key-list sanitized-key key-string-so-far))
-         (key-string (god-mode-maybe-translate (apply 'concat key-list)))
-         (binding (god-mode-lookup-command key-string))
-         alt-key-string)
-    (if binding binding
-      (setq alt-key-string (god-mode--maybe-omit-literal-key key-list))
-      (or (and alt-key-string (god-mode-lookup-command alt-key-string))
-          (god-mode-help-func key-list)
-          (user-error "God: Unknown key binding for `%s'" key-string)))))
+         key-string)
+    (setq k (god-mode-interpret-k
+             (make-god-mode-k :key sanitized-key :prefix  key-string-so-far)))
+    (setq key-string (god-mode-k-regular-key-string k))
+    (or key-string
+        (god-mode--maybe-omit-literal-key k)
+        (god-mode-help-func k))
+    (if (god-mode-k-binding k)
+        (god-mode-lookup-command (god-mode-k-prefix k))
+      (user-error "God: Unknown key binding for `%s'" key-string))))
 
-(defun god-mode--maybe-omit-literal-key (key-list)
-  "Return an alternative key string of KEY-LIST by assuming
+(defun god-mode--maybe-omit-literal-key (k)
+  "Return an alternative key string of K by assuming
   `god-literal-key' was pressed right before the last keystroke."
   (when (and god-mode-can-omit-literal-key
-             (not (string= "" (cadr key-list))))
+             (god-mode-k-prefix k))
     (let* ((alt-key-string
-            (concat (car key-list) (caddr key-list)))
-           (key-binding (read-kbd-macro alt-key-string t)))
+            (concat (god-mode-k-prefix k) " " (god-mode-k-key k)))
+           (key-binding (key-binding (read-kbd-macro alt-key-string t))))
       (when key-binding
         (setq god-literal-sequence 't)
+        (setf (god-mode-k-prefix k) alt-key-string)
+        (setf (god-mode-k-modifier k) nil)
+        (setf (god-mode-k-key k) nil)
+        (setf (god-mode-k-binding k) key-binding)
         alt-key-string))))
 
-(defun god-mode-help-func (key-list)
+(defun god-mode-help-func (k)
   "Returns a function, when called, show help on the prefix. If
-KEY-LIST does not end on a help char, then return nil."
-  (let ((prefix (car key-list)))
+K does not end on a help char, then return nil."
+  (let ((prefix (god-mode-k-prefix k)))
     (when (and prefix
-               (string= (char-to-string help-char) (caddr key-list)))
+               (string= (char-to-string help-char) (god-mode-k-key k)))
       (describe-bindings (read-kbd-macro prefix))
-      #'ignore)))
+      (setf (god-mode-k-binding k) #'ignore)
+      k)))
 
 (defun god-mode-sanitized-key-string (key)
   "Convert any special KEY to textual."
@@ -281,10 +310,12 @@ KEY-LIST does not end on a help char, then return nil."
     (return "RET")
     (t (char-to-string key))))
 
-(defun god-mode-read-key-list (key key-string-so-far)
+(defun god-mode-interpret-k (k)
   "Interpret god-mode special keys for key (consumes more keys if
 appropriate). Returns a list of (prefix modifier key)."
-  (let ((key-consumed t) (next-modifier "") next-key)
+  (let ((key (god-mode-k-key k))
+        (key-string-so-far (god-mode-k-prefix k))
+        (key-consumed t) (next-modifier "") next-key)
     (message key-string-so-far)
     (cond
      ;; Don't check for god-literal-key with the first key
@@ -311,9 +342,9 @@ appropriate). Returns a list of (prefix modifier key)."
                ;; given
                (string-prefix-p "C-" next-modifier))
       (setq next-modifier (concat next-modifier "S-")))
-    (list (if key-string-so-far (concat key-string-so-far " "))
-          next-modifier
-          next-key)))
+    (setf (god-mode-k-modifier k) next-modifier)
+    (setf (god-mode-k-key k) next-key)
+    k))
 
 (defun god-mode-maybe-translate (key-string)
   "Translate KEY-STRING according to `god-mode-translate-alist'."
@@ -334,7 +365,7 @@ command."
            (setq last-command-event (aref key-vector (- (length key-vector) 1)))
            binding)
           ((keymapp binding)
-           (god-mode-lookup-key-sequence nil key-string)))))
+           (god-mode-lookup-key-sequence (make-god-mode-k :prefix  key-string))))))
 
 ;;;###autoload
 (defun god-mode-maybe-activate (&optional status)
