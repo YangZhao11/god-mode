@@ -151,9 +151,6 @@ If not, nothing happens."
 (defvar god-global-mode nil
   "Activate God mode on all buffers?")
 
-(defvar god-literal-sequence nil
-  "Activated after space is pressed in a command sequence.")
-
 ;;;###autoload
 (defun god-mode ()
   "Toggle global God mode."
@@ -191,7 +188,7 @@ If not, nothing happens."
 (define-key universal-argument-map (kbd "u")
   #'god-mode-maybe-universal-argument-more)
 
-(cl-defstruct god-mode-k key modifier prefix binding trace)
+(cl-defstruct god-mode-k key modifier prefix binding trace literal)
 
 (defun god-mode--maybe-local-binding (initial-key)
   "Return a local binding when INITIAL-KEY is low priority."
@@ -210,7 +207,8 @@ If not, nothing happens."
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
          (binding (or (god-mode--maybe-local-binding initial-key)
-                      (god-mode-lookup-key-sequence (make-god-mode-k :key initial-key)))))
+                      (god-mode-lookup-key-sequence
+                       (make-god-mode-k :key (god-mode-sanitized-key-string initial-key))))))
     (when (god-mode-upper-p initial-key)
       (setq this-command-keys-shift-translated t))
     (setq this-original-command binding)
@@ -218,7 +216,6 @@ If not, nothing happens."
     ;; `real-this-command' is used by emacs to populate
     ;; `last-repeatable-command', which is used by `repeat'.
     (setq real-this-command binding)
-    (setq god-literal-sequence nil)
     (if (commandp binding t)
         (call-interactively binding)
       (execute-kbd-macro binding))))
@@ -237,7 +234,7 @@ If not, nothing happens."
                       (god-mode-k-key k))
             (concat (god-mode-k-modifier k)
                     (god-mode-k-key k))))
-         (s (god-mode-maybe-translate key-string))
+         (s (god-mode-maybe-translate k key-string))
          (key-binding (key-binding (read-kbd-macro s t))))
     (when key-binding
       (setf (god-mode-k-prefix k) s)
@@ -249,8 +246,8 @@ If not, nothing happens."
 (defun god-mode-k-sanitized-read (k)
   (let* ((key (god-mode-k-key k))
          (sanitized-key
-          (god-mode-sanitized-key-string
-           (or key (read-event (god-mode-k-prefix k))))))
+          (or key (god-mode-sanitized-key-string
+           (read-event (god-mode-k-prefix k))))))
     (setf (god-mode-k-key k) sanitized-key)
     (setf (god-mode-k-trace k)
           (concat (god-mode-k-trace k) " " sanitized-key))
@@ -265,12 +262,10 @@ If key is nil, read the next keypress. This function sometimes
 recurses. prefix should be nil for the first call in
 the sequence."
   (interactive)
-  (let* ((key (god-mode-k-key k))
-         (key-string-so-far (god-mode-k-prefix k))
-         (sanitized-key (god-mode-k-sanitized-read k))
-         key-string)
-    (god-mode-interpret-k k)
-    (setq key-string (god-mode-k-regular-key-string k))
+  (god-mode-k-sanitized-read k)
+  (god-mode-interpret-k k)
+
+  (let* ((key-string (god-mode-k-regular-key-string k)))
     (or key-string
         (god-mode--maybe-omit-literal-key k)
         (god-mode-help-func k))
@@ -287,7 +282,7 @@ the sequence."
             (concat (god-mode-k-prefix k) " " (god-mode-k-key k)))
            (key-binding (key-binding (read-kbd-macro alt-key-string t))))
       (when key-binding
-        (setq god-literal-sequence 't)
+        (setf (god-mode-k-literal k) 't)
         (setf (god-mode-k-prefix k) alt-key-string)
         (setf (god-mode-k-modifier k) nil)
         (setf (god-mode-k-key k) nil)
@@ -302,6 +297,9 @@ K does not end on a help char, then return nil."
                (string= (char-to-string help-char) (god-mode-k-key k)))
       (describe-bindings (read-kbd-macro prefix))
       (setf (god-mode-k-binding k) #'ignore)
+      (setf (god-mode-k-prefix k) (concat prefix " " (god-mode-k-key k)))
+      (setf (god-mode-k-modifier k) nil)
+      (setf (god-mode-k-key k) nil)
       k)))
 
 (defun god-mode-sanitized-key-string (key)
@@ -323,23 +321,22 @@ K does not end on a help char, then return nil."
   "Interpret god-mode special keys for key (consumes more keys if
 appropriate). Returns a list of (prefix modifier key)."
   (let ((key (god-mode-k-key k))
-        (key-string-so-far (god-mode-k-prefix k))
-        (key-consumed t) (next-modifier "") next-key)
-    (message key-string-so-far)
+        (next-modifier "") next-key)
     (cond
      ;; Don't check for god-literal-key with the first key
-     ((and key-string-so-far (string= key god-literal-key))
-      (setq god-literal-sequence t))
-     (god-literal-sequence
-      (setq key-consumed nil))
+     ((and (god-mode-k-prefix k) (string= key god-literal-key))
+      (setf (god-mode-k-literal k) 't)
+      (setf (god-mode-k-key k) nil))
+     ((god-mode-k-literal k)              ;do nothing, key is not consumed
+      )
      ((and (stringp key) (assoc key god-mod-alist))
+      (setf (god-mode-k-key k) nil)
       (setq next-modifier (cdr (assoc key god-mod-alist))))
      (t
-      (setq key-consumed nil
-            next-modifier (cdr (assoc nil god-mod-alist)))))
+      (setq next-modifier (cdr (assoc nil god-mod-alist)))))
     (setq next-key
-          (if key-consumed
-              (god-mode-sanitized-key-string (read-event key-string-so-far))
+          (if (not (god-mode-k-key k))
+              (god-mode-k-sanitized-read k)
             key))
     (when (and (= (length next-key) 1)
                (string= (get-char-code-property (aref next-key 0) 'general-category) "Lu")
@@ -355,12 +352,12 @@ appropriate). Returns a list of (prefix modifier key)."
     (setf (god-mode-k-key k) next-key)
     k))
 
-(defun god-mode-maybe-translate (key-string)
+(defun god-mode-maybe-translate (k key-string)
   "Translate KEY-STRING according to `god-mode-translate-alist'."
   (let ((translation (cdr (assoc key-string god-mode-translate-alist))))
     (if (not translation)
         key-string
-      (setq god-literal-sequence (cadr translation))
+      (setf (god-mode-k-literal k) (cadr translation))
       (car translation))))
 
 (defun god-mode-lookup-command (k)
@@ -370,7 +367,7 @@ a command is not found, return nil, otherwise return the
 command."
   (let* ((key-string (god-mode-k-prefix k))
          (key-vector (read-kbd-macro key-string t))
-         (binding (key-binding key-vector)))
+         (binding (or (god-mode-k-binding k) (key-binding key-vector))))
     (cond ((commandp binding)
            (setq last-command-event (aref key-vector (- (length key-vector) 1)))
            binding)
