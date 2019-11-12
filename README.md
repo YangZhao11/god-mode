@@ -18,6 +18,7 @@ insertion mode.
   key](#omitting-the-spc-key).
 - Pressing `C-h` (see `help-char`) will show help on key bindings from
   the prefix already entered, akin to regular Emacs.
+- `god-mode-describe-key` now bound to `C-h k` in god-mode.
 
 ## Example
 
