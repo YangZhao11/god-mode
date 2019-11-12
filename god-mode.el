@@ -123,7 +123,8 @@ All predicates must return nil for god-local-mode to start."
       (while (< i 256)
         (define-key map (vector i) 'god-mode-self-insert)
         (setq i (1+ i)))
-      (define-key map (kbd "DEL") nil))
+      (define-key map (kbd "DEL") nil)
+      (define-key map (kbd "C-h k") #'god-mode-describe-key))
     map))
 
 ;;;###autoload
@@ -177,7 +178,7 @@ If not, nothing happens."
   (interactive)
   (if god-local-mode
       (call-interactively #'universal-argument-more)
-    (let ((binding (god-mode-lookup-key-sequence
+    (let ((binding (god-mode-read-command
                     (make-god-mode-k :key "u" :literal 't))))
       (if binding
           (if (commandp binding t)
@@ -208,7 +209,7 @@ If not, nothing happens."
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
          (binding (or (god-mode--maybe-local-binding initial-key)
-                      (god-mode-lookup-key-sequence
+                      (god-mode-read-command
                        (make-god-mode-k :key (god-mode-sanitized-key-string initial-key))))))
     (when (god-mode-upper-p initial-key)
       (setq this-command-keys-shift-translated t))
@@ -235,14 +236,14 @@ If not, nothing happens."
                       (god-mode-k-key k))
             (concat (god-mode-k-modifier k)
                     (god-mode-k-key k))))
-         (s (god-mode-maybe-translate k key-string))
-         (key-binding (key-binding (read-kbd-macro s t))))
+         (translated-key-string (god-mode-maybe-translate k key-string))
+         (key-binding (key-binding (read-kbd-macro translated-key-string t))))
     (when key-binding
-      (setf (god-mode-k-prefix k) s)
+      (setf (god-mode-k-prefix k) translated-key-string)
       (setf (god-mode-k-modifier k) nil)
       (setf (god-mode-k-key k) nil)
-      (setf (god-mode-k-binding k) key-binding)
-      key-string)))
+      (setf (god-mode-k-binding k) key-binding))
+    translated-key-string))
 
 (defun god-mode-k-sanitized-read (k)
   (unless (god-mode-k-key k)
@@ -255,6 +256,22 @@ If not, nothing happens."
       (setf (god-mode-k-binding k) nil)
       (setf (god-mode-k-modifier k) nil))))
 
+(defun god-mode-describe-key ()
+  (interactive)
+  (let ((k (make-god-mode-k)))
+    (god-mode-read-command k)
+    (describe-key
+     (read-kbd-macro (god-mode-k-prefix k) 't)
+     (read-kbd-macro (god-mode-k-trace k) 't))))
+
+(defun god-mode-read-command (k)
+  (while (let ((binding (god-mode-k-binding k)))
+           (or (not binding) (keymapp binding)))
+    (god-mode-lookup-key-sequence k))
+  (when (commandp (god-mode-k-binding k))
+    (setq last-command-event (god-mode-k-last-key k)))
+  (god-mode-k-binding k))
+
 (defun god-mode-lookup-key-sequence (k)
   "Lookup the command for K.
 
@@ -266,11 +283,10 @@ the sequence."
   (god-mode-interpret-k k)
 
   (let* ((key-string (god-mode-k-regular-key-string k)))
-    (or key-string
+    (or (god-mode-k-binding k)
         (god-mode--maybe-omit-literal-key k)
         (god-mode-help-func k))
-    (if (god-mode-k-binding k)
-        (god-mode-lookup-command k)
+    (unless (god-mode-k-binding k)
       (user-error "God: Unknown key binding for `%s'" key-string))))
 
 (defun god-mode--maybe-omit-literal-key (k)
@@ -360,18 +376,6 @@ appropriate). Returns a list of (prefix modifier key)."
   (let* ((key-string (god-mode-k-prefix k))
          (key-vector (read-kbd-macro key-string t)))
     (aref key-vector (- (length key-vector) 1))))
-
-(defun god-mode-lookup-command (k)
-  "Resolve key binding for KEY-STRING.
-This function recursively call `god-mode-lookup-key-sequence'. If
-a command is not found, return nil, otherwise return the
-command."
-  (let* ((binding (god-mode-k-binding k)))
-    (cond ((commandp binding)
-           (setq last-command-event (god-mode-k-last-key k))
-           binding)
-          ((keymapp binding)
-           (god-mode-lookup-key-sequence k)))))
 
 ;;;###autoload
 (defun god-mode-maybe-activate (&optional status)
