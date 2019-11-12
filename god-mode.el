@@ -269,25 +269,25 @@ If this interpretation makes sense, then :binding is set."
       (setf (god-mode-k-binding k) nil)
       (setf (god-mode-k-modifier k) nil))))
 
-(defun god-mode-describe-key ()
+(defun god-mode-describe-key (initial-key)
   "Describe key for god-mode sequences."
-  (interactive)
-  (let* ((initial-key (read-event "Describe key (God): "))
-         (local-binding (god-mode--maybe-local-binding initial-key))
-         (sanitized-key (god-mode-sanitized-key-string initial-key))
-         (k (make-god-mode-k
-             :key sanitized-key :trace sanitized-key)))
+  (interactive (list (read-event "Describe key (God): ")))
     (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
-        (if local-binding
-            (progn (describe-function local-binding)
-                   (message "Low priority binding found for %s" sanitized-key))
-          (god-mode-read-command k)
-          (describe-key
-           (read-kbd-macro (god-mode-k-prefix k) 't)
-           (read-kbd-macro (god-mode-k-trace k) 't)))
-      ;; initial-key not bound to god-mode-self-insert, call regular describe-key
+        (let* ((local-binding (god-mode--maybe-local-binding initial-key))
+               (sanitized-key (god-mode-sanitized-key-string initial-key))
+               (k (make-god-mode-k
+                   :key sanitized-key :trace sanitized-key)))
+          (if local-binding
+              (progn (describe-function local-binding)
+                     (message "Low priority binding found for %s" sanitized-key))
+            (god-mode-read-command k)
+            (describe-key
+             (read-kbd-macro (god-mode-k-prefix k) 't)
+             (read-kbd-macro (god-mode-k-trace k) 't))))
+      ;; initial-key not bound to god-mode-self-insert, call regular
+      ;; describe-key
       (setq unread-command-events (cons initial-key unread-command-events))
-      (call-interactively #'describe-key))))
+      (call-interactively #'describe-key)))
 
 (defun god-mode-read-command (k)
   "Read command for K, until a command is found."
