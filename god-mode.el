@@ -338,19 +338,18 @@ If :key is not `help-char', then return nil."
       k)))
 
 (defun god-mode-sanitized-key-string (key)
-  "Convert any special KEY to textual."
-  (cl-case key
-    (tab "TAB")
-    (?\  "SPC")
-    (left "<left>")
-    (right "<right>")
-    (S-left "S-<left>")
-    (S-right "S-<right>")
-    (prior "<prior>")
-    (next "<next>")
-    (backspace "DEL")
-    (return "RET")
-    (t (char-to-string key))))
+  "Convert any special KEY to textual.
+
+This should be the inverse of `read-kbd-macro' for a single key."
+  (cond
+   ((eq key 'tab) "TAB")
+   ((eq key ?\ ) "SPC")
+   ((eq key 'backspace) "DEL")
+   ((eq key 'return) "RET")
+   ((symbolp key)
+    (replace-regexp-in-string "\\([^ -]+\\)$" "<\\1>"
+                              (symbol-name key)))
+   (t (char-to-string key))))
 
 (defun god-mode-interpret-k (k)
   "Interpret god-mode special keys for key (consumes more keys if
