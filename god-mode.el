@@ -270,8 +270,8 @@ If this interpretation makes sense, then :binding is set."
       (setf (god-mode-k-modifier k) nil))))
 
 (defun god-mode-describe-key (initial-key)
-  "Describe key for god-mode sequences."
-  (interactive (list (read-event "Describe key (God): ")))
+  "Describe key for god-mode sequences starting with INITIAL-KEY."
+  (interactive (list (read-event "Press key: ")))
     (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
         (let* ((local-binding (god-mode--maybe-local-binding initial-key))
                (sanitized-key (god-mode-sanitized-key-string initial-key))
@@ -279,7 +279,7 @@ If this interpretation makes sense, then :binding is set."
                    :key sanitized-key :trace sanitized-key)))
           (if local-binding
               (progn (describe-function local-binding)
-                     (message "Low priority binding found for %s" sanitized-key))
+                     (message "Local binding found for %s" sanitized-key))
             (god-mode-read-command k)
             (describe-key
              (read-kbd-macro (god-mode-k-prefix k) 't)
@@ -312,8 +312,10 @@ If this interpretation makes sense, then :binding is set."
       (user-error "God: Unknown key binding for `%s'" key-string))))
 
 (defun god-mode--maybe-omit-literal-key (k)
-  "Return an alternative key string of K by assuming
-  `god-literal-key' was pressed right before the last keystroke."
+  "Maybe interpret K as user omitted the `god-literal-key'.
+
+When the alternative sequence is bound to something, set :binding
+and :literal for K. Consume :key by setting it nil."
   (when (and god-mode-can-omit-literal-key
              (god-mode-k-prefix k))
     (let* ((alt-key-string
@@ -356,8 +358,9 @@ This should be the inverse of `read-kbd-macro' for a single key."
    (t (char-to-string key))))
 
 (defun god-mode-interpret-k (k)
-  "Interpret god-mode special keys for key (consumes more keys if
-appropriate). Returns a list of (prefix modifier key)."
+  "Interpret god-mode special keys for K.
+
+Consumes more keys if needed."
   (let ((key (god-mode-k-key k))
         (next-modifier "") next-key)
     (cond
@@ -387,7 +390,10 @@ appropriate). Returns a list of (prefix modifier key)."
     k))
 
 (defun god-mode-maybe-translate (k key-string)
-  "Translate KEY-STRING according to `god-mode-translate-alist'."
+  "Translate KEY-STRING according to `god-mode-translate-alist'.
+
+If translation was performed, also set :literal for K according
+to the setting."
   (let ((translation (cdr (assoc key-string god-mode-translate-alist))))
     (if (not translation)
         key-string
