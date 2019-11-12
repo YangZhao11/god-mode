@@ -177,7 +177,8 @@ If not, nothing happens."
   (interactive)
   (if god-local-mode
       (call-interactively #'universal-argument-more)
-    (let ((binding (god-mode-lookup-command (make-god-mode-k :prefix "u"))))
+    (let ((binding (god-mode-lookup-key-sequence
+                    (make-god-mode-k :key "u" :literal 't))))
       (if binding
           (if (commandp binding t)
               (call-interactively binding)
@@ -244,16 +245,15 @@ If not, nothing happens."
       key-string)))
 
 (defun god-mode-k-sanitized-read (k)
-  (let* ((key (god-mode-k-key k))
-         (sanitized-key
-          (or key (god-mode-sanitized-key-string
-           (read-event (god-mode-k-prefix k))))))
-    (setf (god-mode-k-key k) sanitized-key)
-    (setf (god-mode-k-trace k)
-          (concat (god-mode-k-trace k) " " sanitized-key))
-    (setf (god-mode-k-binding k) nil)
-    (setf (god-mode-k-modifier k) nil)
-    sanitized-key))
+  (unless (god-mode-k-key k)
+    (let* ((sanitized-key
+            (god-mode-sanitized-key-string
+             (read-event (god-mode-k-prefix k)))))
+      (setf (god-mode-k-key k) sanitized-key)
+      (setf (god-mode-k-trace k)
+            (concat (god-mode-k-trace k) " " sanitized-key))
+      (setf (god-mode-k-binding k) nil)
+      (setf (god-mode-k-modifier k) nil))))
 
 (defun god-mode-lookup-key-sequence (k)
   "Lookup the command for K.
@@ -327,17 +327,14 @@ appropriate). Returns a list of (prefix modifier key)."
      ((and (god-mode-k-prefix k) (string= key god-literal-key))
       (setf (god-mode-k-literal k) 't)
       (setf (god-mode-k-key k) nil))
-     ((god-mode-k-literal k)              ;do nothing, key is not consumed
-      )
+     ((god-mode-k-literal k))         ;do nothing, key is not consumed
      ((and (stringp key) (assoc key god-mod-alist))
       (setf (god-mode-k-key k) nil)
       (setq next-modifier (cdr (assoc key god-mod-alist))))
      (t
       (setq next-modifier (cdr (assoc nil god-mod-alist)))))
-    (setq next-key
-          (if (not (god-mode-k-key k))
-              (god-mode-k-sanitized-read k)
-            key))
+    (god-mode-k-sanitized-read k)
+    (setq next-key (god-mode-k-key k))
     (when (and (= (length next-key) 1)
                (string= (get-char-code-property (aref next-key 0) 'general-category) "Lu")
                ;; If C- is part of the modifier, S- needs to be given
@@ -349,7 +346,6 @@ appropriate). Returns a list of (prefix modifier key)."
                (string-prefix-p "C-" next-modifier))
       (setq next-modifier (concat next-modifier "S-")))
     (setf (god-mode-k-modifier k) next-modifier)
-    (setf (god-mode-k-key k) next-key)
     k))
 
 (defun god-mode-maybe-translate (k key-string)
@@ -360,16 +356,19 @@ appropriate). Returns a list of (prefix modifier key)."
       (setf (god-mode-k-literal k) (cadr translation))
       (car translation))))
 
+(defun god-mode-k-last-key (k)
+  (let* ((key-string (god-mode-k-prefix k))
+         (key-vector (read-kbd-macro key-string t)))
+    (aref key-vector (- (length key-vector) 1))))
+
 (defun god-mode-lookup-command (k)
   "Resolve key binding for KEY-STRING.
 This function recursively call `god-mode-lookup-key-sequence'. If
 a command is not found, return nil, otherwise return the
 command."
-  (let* ((key-string (god-mode-k-prefix k))
-         (key-vector (read-kbd-macro key-string t))
-         (binding (or (god-mode-k-binding k) (key-binding key-vector))))
+  (let* ((binding (god-mode-k-binding k)))
     (cond ((commandp binding)
-           (setq last-command-event (aref key-vector (- (length key-vector) 1)))
+           (setq last-command-event (god-mode-k-last-key k))
            binding)
           ((keymapp binding)
            (god-mode-lookup-key-sequence k)))))
