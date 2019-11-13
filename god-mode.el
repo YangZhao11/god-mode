@@ -47,19 +47,18 @@
     (?G . "C-M-"))
   "List of keys and their associated modifer."
   :group 'god
-  :type '(alist))
+  :type '(alist :key-type character :value-type string))
 
 (defcustom god-literal-key
-  ?\
-  "The key used for literal interpretation."
+  ?\  "The key used for literal interpretation."
   :group 'god
-  :type 'string)
+  :type 'character)
 
 (defcustom god-mode-can-omit-literal-key
   nil
   "When non-nil, user can omit the literal key when unambiguous."
   :group 'god
-  :type 'bool)
+  :type 'boolean)
 
 (defcustom god-mode-translate-alist
   '(("C-x C-1" "C-x 1")
@@ -74,7 +73,7 @@
   "Translation table for god-mode command keys.
 A third element means to treat the literal key as pressed."
   :group 'god
-  :type '(alist))
+  :type '(alist :key-type string))
 
 (defcustom god-mode-low-priority-exempt
   '(self-insert-command c-electric-lt-gt c-electric-brace)
@@ -87,7 +86,7 @@ A third element means to treat the literal key as pressed."
 This overrides settings for individual keys in
 `god-mode-low-priority-keys'."
   :group 'god
-  :type '(boolean))
+  :type 'boolean)
 
 (defcustom god-mode-low-priority-keys '()
   "List of keys that should be low priority."
@@ -102,7 +101,7 @@ This overrides settings for individual keys in
     magit-popup-mode)
   "List of major modes that should not start in god-local-mode."
   :group 'god
-  :type '(function))
+  :type '(repeat symbol))
 
 (defcustom god-exempt-predicates
   (list #'god-exempt-mode-p
