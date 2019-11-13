@@ -179,7 +179,7 @@ If not, nothing happens."
   (if god-local-mode
       (call-interactively #'universal-argument-more)
     (let ((binding (god-mode-read-command
-                    (make-god-mode-k :key "u" :trace "u" :literal 't))))
+                    (god-mode--k-init ?u 't))))
       (if binding
           (if (commandp binding t)
               (call-interactively binding)
@@ -190,14 +190,23 @@ If not, nothing happens."
 (define-key universal-argument-map (kbd "u")
   #'god-mode-maybe-universal-argument-more)
 
-;; god-mode-k is the state machine for partially entered key sequence.
-(cl-defstruct god-mode-k
+;; god-mode--k is the state machine for partially entered key sequence.
+(cl-defstruct god-mode--k
   key                                ; next key to be processed
   modifier                           ; modifier applicable to key
   prefix                             ; already confirmed key prefix
   binding                            ; binding for current prefix
   trace                              ; a trace of entered keys as string
   literal)                           ; if literal key was pressed
+
+(setq god-mode--current-state nil)
+(defun god-mode--k-init (&optional initial-key literal)
+  (if (not initial-key)
+      (setq god-mode--current-state
+            (make-god-mode--k :literal literal))
+    (let ((sanitized-key (single-key-description initial-key)))
+      (setq god-mode--current-state
+            (make-god-mode--k :key sanitized-key :trace sanitized-key :literal literal)))))
 
 (defun god-mode--maybe-local-binding (initial-key)
   "Return a local binding when INITIAL-KEY is low priority."
@@ -215,11 +224,9 @@ If not, nothing happens."
   (interactive)
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
-         (sanitized-key (god-mode-sanitized-key-string initial-key))
          (binding (or (god-mode--maybe-local-binding initial-key)
                       (god-mode-read-command
-                       (make-god-mode-k
-                        :key sanitized-key :trace sanitized-key)))))
+                       (god-mode--k-init initial-key)))))
     (when (god-mode-upper-p initial-key)
       (setq this-command-keys-shift-translated t))
     (setq this-original-command binding)
@@ -237,53 +244,52 @@ If not, nothing happens."
        (<= char ?Z)
        (/= char ?G)))
 
-(defun god-mode-k-regular-key-string (k)
+(defun god-mode--k-regular-key-string (k)
   "Return regular key string interpretation for K.
 
 If this interpretation makes sense, then :binding is set."
   (let* ((key-string
-          (if (god-mode-k-prefix k)
-              (concat (god-mode-k-prefix k) " "
-                      (god-mode-k-modifier k)
-                      (god-mode-k-key k))
-            (concat (god-mode-k-modifier k)
-                    (god-mode-k-key k))))
+          (if (god-mode--k-prefix k)
+              (concat (god-mode--k-prefix k) " "
+                      (god-mode--k-modifier k)
+                      (god-mode--k-key k))
+            (concat (god-mode--k-modifier k)
+                    (god-mode--k-key k))))
          (translated-key-string (god-mode-maybe-translate k key-string))
          (key-binding (key-binding (read-kbd-macro translated-key-string t))))
     (when key-binding
-      (setf (god-mode-k-prefix k) translated-key-string)
-      (setf (god-mode-k-modifier k) nil)
-      (setf (god-mode-k-key k) nil)
-      (setf (god-mode-k-binding k) key-binding))
+      (setf (god-mode--k-prefix k) translated-key-string)
+      (setf (god-mode--k-modifier k) nil)
+      (setf (god-mode--k-key k) nil)
+      (setf (god-mode--k-binding k) key-binding))
     translated-key-string))
 
-(defun god-mode-k-sanitized-read (k)
+(defun god-mode--k-sanitized-read (k)
   "Maybe read a keystroke for K."
-  (unless (god-mode-k-key k)
+  (unless (god-mode--k-key k)
     (let* ((sanitized-key
-            (god-mode-sanitized-key-string
-             (read-event (god-mode-k-prefix k)))))
-      (setf (god-mode-k-key k) sanitized-key)
-      (setf (god-mode-k-trace k)
-            (concat (god-mode-k-trace k) " " sanitized-key))
-      (setf (god-mode-k-binding k) nil)
-      (setf (god-mode-k-modifier k) nil))))
+            (single-key-description
+             (read-event (god-mode--k-prefix k)))))
+      (setf (god-mode--k-key k) sanitized-key)
+      (setf (god-mode--k-trace k)
+            (concat (god-mode--k-trace k) " " sanitized-key))
+      (setf (god-mode--k-binding k) nil)
+      (setf (god-mode--k-modifier k) nil))))
 
 (defun god-mode-describe-key (initial-key)
   "Describe key for god-mode sequences starting with INITIAL-KEY."
   (interactive (list (read-event "Press key: ")))
     (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
         (let* ((local-binding (god-mode--maybe-local-binding initial-key))
-               (sanitized-key (god-mode-sanitized-key-string initial-key))
-               (k (make-god-mode-k
-                   :key sanitized-key :trace sanitized-key)))
+               (sanitized-key (single-key-description initial-key))
+               (k (god-mode--k-init initial-key)))
           (if local-binding
               (progn (describe-function local-binding)
                      (message "Local binding found for %s" sanitized-key))
             (god-mode-read-command k)
             (describe-key
-             (read-kbd-macro (god-mode-k-prefix k) 't)
-             (read-kbd-macro (god-mode-k-trace k) 't))))
+             (read-kbd-macro (god-mode--k-prefix k) 't)
+             (read-kbd-macro (god-mode--k-trace k) 't))))
       ;; initial-key not bound to god-mode-self-insert, call regular
       ;; describe-key
       (setq unread-command-events (cons initial-key unread-command-events))
@@ -291,24 +297,24 @@ If this interpretation makes sense, then :binding is set."
 
 (defun god-mode-read-command (k)
   "Read command for K, until a command is found."
-  (while (let ((binding (god-mode-k-binding k)))
+  (while (let ((binding (god-mode--k-binding k)))
            (or (not binding) (keymapp binding)))
-    (god-mode-k-read-one-key k))
-  (when (commandp (god-mode-k-binding k))
-    (setq last-command-event (god-mode-k-last-key k)))
-  (god-mode-k-binding k))
+    (god-mode--k-read-one-key k))
+  (when (commandp (god-mode--k-binding k))
+    (setq last-command-event (god-mode--k-last-key k)))
+  (god-mode--k-binding k))
 
-(defun god-mode-k-read-one-key (k)
+(defun god-mode--k-read-one-key (k)
   "Lookup the command for K by reading one more (combo) key."
   (interactive)
-  (god-mode-k-sanitized-read k)
+  (god-mode--k-sanitized-read k)
   (god-mode-interpret-k k)
 
-  (let* ((key-string (god-mode-k-regular-key-string k)))
-    (or (god-mode-k-binding k)
+  (let* ((key-string (god-mode--k-regular-key-string k)))
+    (or (god-mode--k-binding k)
         (god-mode--maybe-omit-literal-key k)
         (god-mode--maybe-help k))
-    (unless (god-mode-k-binding k)
+    (unless (god-mode--k-binding k)
       (user-error "God: Unknown key binding for `%s'" key-string))))
 
 (defun god-mode--maybe-omit-literal-key (k)
@@ -317,65 +323,51 @@ If this interpretation makes sense, then :binding is set."
 When the alternative sequence is bound to something, set :binding
 and :literal for K. Consume :key by setting it nil."
   (when (and god-mode-can-omit-literal-key
-             (god-mode-k-prefix k))
+             (god-mode--k-prefix k))
     (let* ((alt-key-string
-            (concat (god-mode-k-prefix k) " " (god-mode-k-key k)))
+            (concat (god-mode--k-prefix k) " " (god-mode--k-key k)))
            (key-binding (key-binding (read-kbd-macro alt-key-string t))))
       (when key-binding
-        (setf (god-mode-k-literal k) 't)
-        (setf (god-mode-k-prefix k) alt-key-string)
-        (setf (god-mode-k-modifier k) nil)
-        (setf (god-mode-k-key k) nil)
-        (setf (god-mode-k-binding k) key-binding)
+        (setf (god-mode--k-literal k) 't)
+        (setf (god-mode--k-prefix k) alt-key-string)
+        (setf (god-mode--k-modifier k) nil)
+        (setf (god-mode--k-key k) nil)
+        (setf (god-mode--k-binding k) key-binding)
         alt-key-string))))
 
 (defun god-mode--maybe-help (k)
   "Maybe trigger key binding help for K.
 
 If :key is not `help-char', then return nil."
-  (let ((prefix (god-mode-k-prefix k)))
+  (let ((prefix (god-mode--k-prefix k)))
     (when (and prefix
-               (string= (char-to-string help-char) (god-mode-k-key k)))
+               (string= (single-key-description help-char) (god-mode--k-key k)))
       (describe-bindings (read-kbd-macro prefix))
-      (setf (god-mode-k-binding k) #'ignore)
-      (setf (god-mode-k-prefix k) (concat prefix " " (god-mode-k-key k)))
-      (setf (god-mode-k-modifier k) nil)
-      (setf (god-mode-k-key k) nil)
+      (setf (god-mode--k-binding k) #'ignore)
+      (setf (god-mode--k-prefix k) (concat prefix " " (god-mode--k-key k)))
+      (setf (god-mode--k-modifier k) nil)
+      (setf (god-mode--k-key k) nil)
       k)))
-
-(defun god-mode-sanitized-key-string (key)
-  "Convert any special KEY to textual.
-
-This should be the inverse of `read-kbd-macro' for a single key."
-  (cond
-   ((eq key 'tab) "TAB")
-   ((eq key ?\ ) "SPC")
-   ((eq key 'backspace) "DEL")
-   ((eq key 'return) "RET")
-   ((symbolp key)
-    (replace-regexp-in-string "\\([^ -]+\\)$" "<\\1>"
-                              (symbol-name key)))
-   (t (char-to-string key))))
 
 (defun god-mode-interpret-k (k)
   "Interpret god-mode special keys for K.
 
 Consumes more keys if needed."
-  (let ((key (god-mode-k-key k))
+  (let ((key (god-mode--k-key k))
         (next-modifier "") next-key)
     (cond
      ;; Don't check for god-literal-key with the first key
-     ((and (god-mode-k-prefix k) (string= key god-literal-key))
-      (setf (god-mode-k-literal k) 't)
-      (setf (god-mode-k-key k) nil))
-     ((god-mode-k-literal k))         ;do nothing, key is not consumed
+     ((and (god-mode--k-prefix k) (string= key god-literal-key))
+      (setf (god-mode--k-literal k) 't)
+      (setf (god-mode--k-key k) nil))
+     ((god-mode--k-literal k))         ;do nothing, key is not consumed
      ((and (stringp key) (assoc key god-mod-alist))
-      (setf (god-mode-k-key k) nil)
+      (setf (god-mode--k-key k) nil)
       (setq next-modifier (cdr (assoc key god-mod-alist))))
      (t
       (setq next-modifier (cdr (assoc nil god-mod-alist)))))
-    (god-mode-k-sanitized-read k)
-    (setq next-key (god-mode-k-key k))
+    (god-mode--k-sanitized-read k)
+    (setq next-key (god-mode--k-key k))
     (when (and (= (length next-key) 1)
                (string= (get-char-code-property (aref next-key 0) 'general-category) "Lu")
                ;; If C- is part of the modifier, S- needs to be given
@@ -386,7 +378,7 @@ Consumes more keys if needed."
                ;; given
                (string-prefix-p "C-" next-modifier))
       (setq next-modifier (concat next-modifier "S-")))
-    (setf (god-mode-k-modifier k) next-modifier)
+    (setf (god-mode--k-modifier k) next-modifier)
     k))
 
 (defun god-mode-maybe-translate (k key-string)
@@ -397,12 +389,12 @@ to the setting."
   (let ((translation (cdr (assoc key-string god-mode-translate-alist))))
     (if (not translation)
         key-string
-      (setf (god-mode-k-literal k) (cadr translation))
+      (setf (god-mode--k-literal k) (cadr translation))
       (car translation))))
 
-(defun god-mode-k-last-key (k)
+(defun god-mode--k-last-key (k)
   "Return last key character for K."
-  (let* ((key-string (god-mode-k-prefix k))
+  (let* ((key-string (god-mode--k-prefix k))
          (key-vector (read-kbd-macro key-string t)))
     (aref key-vector (- (length key-vector) 1))))
 
