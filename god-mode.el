@@ -43,14 +43,14 @@
 
 (defcustom god-mod-alist
   '((nil . "C-")
-    ("g" . "M-")
-    ("G" . "C-M-"))
+    (?g . "M-")
+    (?G . "C-M-"))
   "List of keys and their associated modifer."
   :group 'god
   :type '(alist))
 
 (defcustom god-literal-key
-  "SPC"
+  ?\
   "The key used for literal interpretation."
   :group 'god
   :type 'string)
@@ -206,7 +206,7 @@ If not, nothing happens."
             (make-god-mode--k :literal literal))
     (let ((sanitized-key (single-key-description initial-key)))
       (setq god-mode--current-state
-            (make-god-mode--k :key sanitized-key :trace sanitized-key :literal literal)))))
+            (make-god-mode--k :key initial-key :trace sanitized-key :literal literal)))))
 
 (defun god-mode--maybe-local-binding (initial-key)
   "Return a local binding when INITIAL-KEY is low priority."
@@ -252,9 +252,9 @@ If this interpretation makes sense, then :binding is set."
           (if (god-mode--k-prefix k)
               (concat (god-mode--k-prefix k) " "
                       (god-mode--k-modifier k)
-                      (god-mode--k-key k))
+                      (single-key-description (god-mode--k-key k)))
             (concat (god-mode--k-modifier k)
-                    (god-mode--k-key k))))
+                    (single-key-description (god-mode--k-key k)))))
          (translated-key-string (god-mode-maybe-translate k key-string))
          (key-binding (key-binding (read-kbd-macro translated-key-string t))))
     (when key-binding
@@ -267,10 +267,9 @@ If this interpretation makes sense, then :binding is set."
 (defun god-mode--k-sanitized-read (k)
   "Maybe read a keystroke for K."
   (unless (god-mode--k-key k)
-    (let* ((sanitized-key
-            (single-key-description
-             (read-event (god-mode--k-prefix k)))))
-      (setf (god-mode--k-key k) sanitized-key)
+    (let* ((key (read-event (god-mode--k-prefix k)))
+           (sanitized-key (single-key-description key)))
+      (setf (god-mode--k-key k) key)
       (setf (god-mode--k-trace k)
             (concat (god-mode--k-trace k) " " sanitized-key))
       (setf (god-mode--k-binding k) nil)
@@ -325,7 +324,7 @@ and :literal for K. Consume :key by setting it nil."
   (when (and god-mode-can-omit-literal-key
              (god-mode--k-prefix k))
     (let* ((alt-key-string
-            (concat (god-mode--k-prefix k) " " (god-mode--k-key k)))
+            (concat (god-mode--k-prefix k) " " (single-key-description (god-mode--k-key k))))
            (key-binding (key-binding (read-kbd-macro alt-key-string t))))
       (when key-binding
         (setf (god-mode--k-literal k) 't)
@@ -339,12 +338,14 @@ and :literal for K. Consume :key by setting it nil."
   "Maybe trigger key binding help for K.
 
 If :key is not `help-char', then return nil."
-  (let ((prefix (god-mode--k-prefix k)))
+  (let ((prefix (god-mode--k-prefix k))
+        (key (god-mode--k-key k)))
     (when (and prefix
-               (string= (single-key-description help-char) (god-mode--k-key k)))
+               (or (eq help-char key)
+                   (memq key help-event-list)))
       (describe-bindings (read-kbd-macro prefix))
       (setf (god-mode--k-binding k) #'ignore)
-      (setf (god-mode--k-prefix k) (concat prefix " " (god-mode--k-key k)))
+      (setf (god-mode--k-prefix k) (concat prefix " " (single-key-description key)))
       (setf (god-mode--k-modifier k) nil)
       (setf (god-mode--k-key k) nil)
       k)))
@@ -354,22 +355,22 @@ If :key is not `help-char', then return nil."
 
 Consumes more keys if needed."
   (let ((key (god-mode--k-key k))
-        (next-modifier "") next-key)
+        (next-modifier "")
+        next-key)
     (cond
      ;; Don't check for god-literal-key with the first key
-     ((and (god-mode--k-prefix k) (string= key god-literal-key))
+     ((and (god-mode--k-prefix k) (eq key god-literal-key))
       (setf (god-mode--k-literal k) 't)
       (setf (god-mode--k-key k) nil))
      ((god-mode--k-literal k))         ;do nothing, key is not consumed
-     ((and (stringp key) (assoc key god-mod-alist))
+     ((assq key god-mod-alist)
       (setf (god-mode--k-key k) nil)
-      (setq next-modifier (cdr (assoc key god-mod-alist))))
+      (setq next-modifier (cdr (assq key god-mod-alist))))
      (t
-      (setq next-modifier (cdr (assoc nil god-mod-alist)))))
+      (setq next-modifier (cdr (assq nil god-mod-alist)))))
     (god-mode--k-sanitized-read k)
     (setq next-key (god-mode--k-key k))
-    (when (and (= (length next-key) 1)
-               (string= (get-char-code-property (aref next-key 0) 'general-category) "Lu")
+    (when (and (memq 'shift (event-modifiers next-key))
                ;; If C- is part of the modifier, S- needs to be given
                ;; in order to distinguish the uppercase from the
                ;; lowercase bindings. If C- is not in the modifier,
