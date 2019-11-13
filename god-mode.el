@@ -227,8 +227,6 @@ If not, nothing happens."
          (binding (or (god-mode--maybe-local-binding initial-key)
                       (god-mode-read-command
                        (god-mode--k-init initial-key)))))
-    (when (god-mode-upper-p initial-key)
-      (setq this-command-keys-shift-translated t))
     (setq this-original-command binding)
     (setq this-command binding)
     ;; `real-this-command' is used by emacs to populate
@@ -238,11 +236,24 @@ If not, nothing happens."
         (call-interactively binding)
       (execute-kbd-macro binding))))
 
-(defun god-mode-upper-p (char)
-  "Is the given CHAR upper case?"
-  (and (>= char ?A)
-       (<= char ?Z)
-       (/= char ?G)))
+(defun god-mode-describe-key (initial-key)
+  "Describe key for god-mode sequences starting with INITIAL-KEY."
+  (interactive (list (read-event "Press key: ")))
+    (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
+        (let* ((local-binding (god-mode--maybe-local-binding initial-key))
+               (sanitized-key (single-key-description initial-key))
+               (k (god-mode--k-init initial-key)))
+          (if local-binding
+              (progn (describe-function local-binding)
+                     (message "Local binding found for %s" sanitized-key))
+            (god-mode-read-command k)
+            (describe-key
+             (read-kbd-macro (god-mode--k-prefix k) 't)
+             (read-kbd-macro (god-mode--k-trace k) 't))))
+      ;; initial-key not bound to god-mode-self-insert, call regular
+      ;; describe-key
+      (setq unread-command-events (cons initial-key unread-command-events))
+      (call-interactively #'describe-key)))
 
 (defun god-mode--k-regular-key-string (k)
   "Return regular key string interpretation for K.
@@ -275,25 +286,6 @@ If this interpretation makes sense, then :binding is set."
       (setf (god-mode--k-binding k) nil)
       (setf (god-mode--k-modifier k) nil))))
 
-(defun god-mode-describe-key (initial-key)
-  "Describe key for god-mode sequences starting with INITIAL-KEY."
-  (interactive (list (read-event "Press key: ")))
-    (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
-        (let* ((local-binding (god-mode--maybe-local-binding initial-key))
-               (sanitized-key (single-key-description initial-key))
-               (k (god-mode--k-init initial-key)))
-          (if local-binding
-              (progn (describe-function local-binding)
-                     (message "Local binding found for %s" sanitized-key))
-            (god-mode-read-command k)
-            (describe-key
-             (read-kbd-macro (god-mode--k-prefix k) 't)
-             (read-kbd-macro (god-mode--k-trace k) 't))))
-      ;; initial-key not bound to god-mode-self-insert, call regular
-      ;; describe-key
-      (setq unread-command-events (cons initial-key unread-command-events))
-      (call-interactively #'describe-key)))
-
 (defun god-mode-read-command (k)
   "Read command for K, until a command is found."
   (while (let ((binding (god-mode--k-binding k)))
@@ -311,10 +303,34 @@ If this interpretation makes sense, then :binding is set."
 
   (let* ((key-string (god-mode--k-regular-key-string k)))
     (or (god-mode--k-binding k)
+        (god-mode--maybe-shift-translate k)
         (god-mode--maybe-omit-literal-key k)
         (god-mode--maybe-help k))
     (unless (god-mode--k-binding k)
       (user-error "God: Unknown key binding for `%s'" key-string))))
+
+(defun god-mode--maybe-shift-translate (k)
+  "Maybe remove the shift key if the regular binding does not work.
+
+Currently only trigger for first key. See info node for
+ `read-key-sequence' for how that is handled in regular emacs."
+  (when (not (god-mode--k-prefix k))
+    (let* ((modifier (god-mode--k-modifier k))
+           (shift-removed (replace-regexp-in-string "S-" "" modifier))
+           alt-key-string
+           key-binding)
+      (when (and (not (string= modifier shift-removed))
+                 (setq alt-key-string
+                       (concat shift-removed
+                               (single-key-description (god-mode--k-key k))))
+                 (setq key-binding (key-binding (read-kbd-macro alt-key-string t)))
+                 (commandp key-binding))
+        (setq this-command-keys-shift-translated t)
+        (setf (god-mode--k-prefix k) alt-key-string)
+        (setf (god-mode--k-modifier k) nil)
+        (setf (god-mode--k-key k) nil)
+        (setf (god-mode--k-binding k) key-binding)
+        alt-key-string))))
 
 (defun god-mode--maybe-omit-literal-key (k)
   "Maybe interpret K as user omitted the `god-literal-key'.
