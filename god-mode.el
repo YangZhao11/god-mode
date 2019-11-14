@@ -237,7 +237,7 @@ If not, nothing happens."
 
 (defun god-mode-describe-key (initial-key)
   "Describe key for god-mode sequences starting with INITIAL-KEY."
-  (interactive (list (read-event "Press key: ")))
+  (interactive (list (read-key "Press key: ")))
     (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
         (let* ((local-binding (god-mode--maybe-local-binding initial-key))
                (sanitized-key (single-key-description initial-key))
@@ -277,7 +277,7 @@ If this interpretation makes sense, then :binding is set."
 (defun god-mode--k-sanitized-read (k)
   "Maybe read a keystroke for K."
   (unless (god-mode--k-key k)
-    (let* ((key (read-event (god-mode--k-prefix k)))
+    (let* ((key (read-key (god-mode--k-prefix k)))
            (sanitized-key (single-key-description key)))
       (setf (god-mode--k-key k) key)
       (setf (god-mode--k-trace k)
