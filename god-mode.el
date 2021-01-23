@@ -207,25 +207,31 @@ If not, nothing happens."
       (setq god-mode--current-state
             (make-god-mode--k :key initial-key :trace sanitized-key :literal literal)))))
 
-(defun god-mode--maybe-local-binding (initial-key)
-  "Return a local binding when INITIAL-KEY is low priority."
+(defun god-mode--maybe-local-binding (k)
+  "Return a local binding when K is low priority."
+  (let ((key (god-mode--k-key k)))
   (when (or god-mode-is-low-priority
-            (memq initial-key god-mode-low-priority-keys))
-    (let ((binding (local-key-binding (char-to-string initial-key))))
-      (if (and binding
-               (commandp binding t)
-               (not (memq binding god-mode-low-priority-exempt))
-               (not (eq binding 'god-mode-self-insert)))
-          binding))))
+            (memq key god-mode-low-priority-keys))
+    (let ((binding (local-key-binding (char-to-string key))))
+      (cond
+       ((and binding
+             (commandp binding t)
+             (not (memq binding god-mode-low-priority-exempt))
+             (not (eq binding 'god-mode-self-insert)))
+        binding)
+       ;;
+       ((keymapp binding)
+        (set-transient-map binding)
+        'ignore))))))
 
 (defun god-mode-self-insert ()
   "Handle self-insert keys."
   (interactive)
   (let* ((initial-key (aref (this-command-keys-vector)
                             (- (length (this-command-keys-vector)) 1)))
-         (binding (or (god-mode--maybe-local-binding initial-key)
-                      (god-mode-read-command
-                       (god-mode--k-init initial-key)))))
+         (k (god-mode--k-init initial-key))
+         (binding (or (god-mode--maybe-local-binding k)
+                      (god-mode-read-command k))))
     (setq this-original-command binding)
     (setq this-command binding)
     ;; `real-this-command' is used by emacs to populate
@@ -239,12 +245,14 @@ If not, nothing happens."
   "Describe key for god-mode sequences starting with INITIAL-KEY."
   (interactive (list (read-key "Press key: ")))
     (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
-        (let* ((local-binding (god-mode--maybe-local-binding initial-key))
-               (sanitized-key (single-key-description initial-key))
-               (k (god-mode--k-init initial-key)))
+        (let* ((k (god-mode--k-init initial-key))
+               (local-binding (god-mode--maybe-local-binding k))
+               (sanitized-key (single-key-description initial-key)))
           (if local-binding
-              (progn (describe-function local-binding)
-                     (message "Local binding found for %s" sanitized-key))
+              (if (eq local-binding 'ignore)
+                  (message "Local binding is a prefix key for %s" sanitized-key)
+                (describe-function local-binding)
+                (message "Local binding found for %s" sanitized-key))
             (god-mode-read-command k)
             (describe-key
              (read-kbd-macro (god-mode--k-prefix k) 't)
