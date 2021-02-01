@@ -76,7 +76,7 @@ A third element means to treat the literal key as pressed."
   :type '(alist :key-type string))
 
 (defcustom god-mode-low-priority-exempt
-  '(self-insert-command c-electric-lt-gt c-electric-brace)
+  '(self-insert-command c-electric-lt-gt c-electric-brace sgml-slash)
   "Commands that do not trigger for `god-mode-low-priority'."
   :group 'god
   :type '(repeat symbol))
