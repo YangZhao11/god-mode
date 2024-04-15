@@ -129,7 +129,9 @@ All predicates must return nil for god-local-mode to start."
 ;;;###autoload
 (define-minor-mode god-local-mode
   "Minor mode for running commands."
-  nil " God" god-local-mode-map
+  :init-value nil
+  :lighter " God"
+  :keymap god-local-mode-map
   (if god-local-mode
       (run-hooks 'god-mode-enabled-hook)
     (run-hooks 'god-mode-disabled-hook)))
@@ -439,17 +441,9 @@ to the setting."
 Members of the `god-exempt-major-modes' list are exempt."
   (memq major-mode god-exempt-major-modes))
 
-(defun god-mode-child-of-p (mode parent-mode)
-  "Return non-nil if MODE is derived from PARENT-MODE."
-  (let ((parent (get mode 'derived-mode-parent)))
-    (cond ((eq parent parent-mode))
-          ((not (null parent))
-           (god-mode-child-of-p parent parent-mode))
-          (t nil))))
-
 (defun god-comint-mode-p ()
   "Return non-nil if major-mode is child of comint-mode."
-  (god-mode-child-of-p major-mode 'comint-mode))
+  (derived-mode-p 'comint-mode))
 
 (defun god-special-mode-p ()
   "Return non-nil if major-mode is special or a child of special-mode."

@@ -1,4 +1,4 @@
-;;; god-mode-isearch.el --- God-mode-like behaviour for isearch
+;;; god-mode-isearch.el --- God-mode-like behaviour for isearch -*- coding: utf-8; lexical-binding: t -*-
 
 ;; Copyright (c) 2014 Chris Done. All rights reserved.
 
