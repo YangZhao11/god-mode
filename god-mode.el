@@ -283,8 +283,9 @@ return keymap, otherwise return `ignore' but load the keymap."
             :else ;; not local binding
             (god-mode-read-command k)
             (describe-key
+             (list (cons
              (read-kbd-macro (god-mode--k-prefix k) 't)
-             (read-kbd-macro (god-mode--k-trace k) 't))))
+             (read-kbd-macro (god-mode--k-trace k) 't))))))
       ;; initial-key not bound to god-mode-self-insert, call regular
       ;; describe-key
       (setq unread-command-events (cons initial-key unread-command-events))
