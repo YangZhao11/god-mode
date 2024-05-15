@@ -60,6 +60,13 @@
   :group 'god
   :type 'boolean)
 
+(defcustom god-mode-sticky-alist
+  '(("M-" (nil . "M-"))
+    ("C-M-" (nil . "C-M-")))
+  "Effective `god-mod-alist' when sticky modifiers are enabled."
+  :group 'god
+  :type '(alist :key-type string :value-type alist))
+
 (defcustom god-mode-translate-alist
   '(("C-x C-1" "C-x 1")
     ("C-x C-2" "C-x 2")
@@ -193,24 +200,29 @@ If not, nothing happens."
 
 ;; god-mode--k is the state machine for partially entered key sequence.
 (cl-defstruct god-mode--k
-  key                                ; next key to be processed
-  modifier                           ; modifier applicable to key
-  prefix                             ; already confirmed key prefix
-  binding                            ; binding for current prefix
-  trace                              ; a trace of entered keys as string
-  literal)                           ; if literal key was pressed
+  key                              ; next key to be processed
+  modifier                         ; modifier applicable to key
+  prefix                           ; already confirmed key prefix
+  binding                          ; binding for current prefix
+  trace                            ; a trace of entered keys as string
+  literal                          ; if literal key was pressed
+  alist                            ; effective god-mod-alist
+  )
 
 (setq god-mode--current-state nil)
 (defun god-mode--k-init (&optional initial-key literal)
   (if (not initial-key)
       (setq god-mode--current-state
-            (make-god-mode--k :literal literal))
+            (make-god-mode--k :literal literal :alist god-mod-alist))
     (let ((sanitized-key (single-key-description initial-key)))
       (setq god-mode--current-state
-            (make-god-mode--k :key initial-key :trace sanitized-key :literal literal)))))
+            (make-god-mode--k :key initial-key :trace sanitized-key :literal literal :alist god-mod-alist)))))
 
-(defun god-mode--maybe-local-binding (k)
-  "Return a local binding when K is low priority."
+(defun god-mode--maybe-local-binding (k &optional return-keymap)
+  "Return a local binding when K is low priority.
+
+When local binding is a keymap, if RETURN-KEYMAP is non-nil
+return keymap, otherwise return `ignore' but load the keymap."
   (let ((key (god-mode--k-key k)))
   (when (or god-mode-is-low-priority
             (memq key god-mode-low-priority-keys))
@@ -221,10 +233,13 @@ If not, nothing happens."
              (not (memq binding god-mode-low-priority-exempt))
              (not (eq binding 'god-mode-self-insert)))
         binding)
-       ;;
+       ;; Load the prefix map. Note follow up keys are not handled by god-mode.
        ((keymapp binding)
-        (set-transient-map binding)
-        'ignore))))))
+        (if return-keymap
+            binding
+          :else
+          (set-transient-map binding)
+          'ignore)))))))
 
 (defun god-mode-self-insert ()
   "Handle self-insert keys."
@@ -248,13 +263,24 @@ If not, nothing happens."
   (interactive (list (read-key "Press key: ")))
     (if (eq (key-binding (vector initial-key)) 'god-mode-self-insert)
         (let* ((k (god-mode--k-init initial-key))
-               (local-binding (god-mode--maybe-local-binding k))
+               (local-binding (god-mode--maybe-local-binding k 't))
                (sanitized-key (single-key-description initial-key)))
           (if local-binding
-              (if (eq local-binding 'ignore)
-                  (message "Local binding is a prefix key for %s" sanitized-key)
-                (describe-function local-binding)
-                (message "Local binding found for %s" sanitized-key))
+              (progn
+                (if (keymapp local-binding)
+                    (describe-keymap local-binding)
+                  (describe-function local-binding))
+                (let ((inhibit-read-only t))
+                      (with-current-buffer (help-buffer)
+                        (insert
+                         (format "%s is locally bound to %s:\n"
+                                 (propertize
+                                  sanitized-key
+                                  'face 'help-key-binding)
+                                 (if (keymapp local-binding)
+                                     "prefix key"
+                                   "command"))))))
+            :else ;; not local binding
             (god-mode-read-command k)
             (describe-key
              (read-kbd-macro (god-mode--k-prefix k) 't)
@@ -388,13 +414,19 @@ Consumes more keys if needed."
       (setf (god-mode--k-literal k) 't)
       (setf (god-mode--k-key k) nil))
      ((god-mode--k-literal k))         ;do nothing, key is not consumed
-     ((assq key god-mod-alist)
+     ((assq key (god-mode--k-alist k))
       (setf (god-mode--k-key k) nil)
-      (setq next-modifier (cdr (assq key god-mod-alist))))
+      (setq next-modifier (cdr (assq key (god-mode--k-alist k)))))
      (t
-      (setq next-modifier (cdr (assq nil god-mod-alist)))))
+      (setq next-modifier (cdr (assq nil (god-mode--k-alist k))))))
     (god-mode--k-sanitized-read k)
     (setq next-key (god-mode--k-key k))
+
+    (when-let (updated-alist
+               (assoc next-modifier god-mode-sticky-alist 'string=))
+      (setf (god-mode--k-alist k)
+            (cdr updated-alist)))
+
     (when (and (memq 'shift (event-modifiers next-key))
                ;; If C- is part of the modifier, S- needs to be given
                ;; in order to distinguish the uppercase from the
