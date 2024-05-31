@@ -60,13 +60,6 @@
   :group 'god
   :type 'boolean)
 
-(defcustom god-mode-sticky-alist
-  '(("M-" (nil . "M-"))
-    ("C-M-" (nil . "C-M-")))
-  "Effective `god-mod-alist' when sticky modifiers are enabled."
-  :group 'god
-  :type '(alist :key-type string :value-type alist))
-
 (defcustom god-mode-translate-alist
   '(("C-x C-1" "C-x 1")
     ("C-x C-2" "C-x 2")
@@ -206,17 +199,16 @@ If not, nothing happens."
   binding                          ; binding for current prefix
   trace                            ; a trace of entered keys as string
   literal                          ; if literal key was pressed
-  alist                            ; effective god-mod-alist
   )
 
 (setq god-mode--current-state nil)
 (defun god-mode--k-init (&optional initial-key literal)
   (if (not initial-key)
       (setq god-mode--current-state
-            (make-god-mode--k :literal literal :alist god-mod-alist))
+            (make-god-mode--k :literal literal))
     (let ((sanitized-key (single-key-description initial-key)))
       (setq god-mode--current-state
-            (make-god-mode--k :key initial-key :trace sanitized-key :literal literal :alist god-mod-alist)))))
+            (make-god-mode--k :key initial-key :trace sanitized-key :literal literal)))))
 
 (defun god-mode--maybe-local-binding (k &optional return-keymap)
   "Return a local binding when K is low priority.
@@ -415,18 +407,13 @@ Consumes more keys if needed."
       (setf (god-mode--k-literal k) 't)
       (setf (god-mode--k-key k) nil))
      ((god-mode--k-literal k))         ;do nothing, key is not consumed
-     ((assq key (god-mode--k-alist k))
+     ((assq key god-mod-alist)
       (setf (god-mode--k-key k) nil)
-      (setq next-modifier (cdr (assq key (god-mode--k-alist k)))))
+      (setq next-modifier (cdr (assq key god-mod-alist))))
      (t
-      (setq next-modifier (cdr (assq nil (god-mode--k-alist k))))))
+      (setq next-modifier (cdr (assq nil god-mod-alist)))))
     (god-mode--k-sanitized-read k)
     (setq next-key (god-mode--k-key k))
-
-    (when-let (updated-alist
-               (assoc next-modifier god-mode-sticky-alist 'string=))
-      (setf (god-mode--k-alist k)
-            (cdr updated-alist)))
 
     (when (and (memq 'shift (event-modifiers next-key))
                ;; If C- is part of the modifier, S- needs to be given
