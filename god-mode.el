@@ -247,7 +247,11 @@ return keymap, otherwise return `ignore' but load the keymap."
     ;; `last-repeatable-command', which is used by `repeat'.
     (setq real-this-command binding)
     (if (commandp binding t)
-        (call-interactively binding)
+        (progn
+          ;; Maybe use `command-execute' (as used in M-x). However it
+          ;; needs some work with prefix args.
+          (run-hooks 'pre-command-hook)
+          (call-interactively binding 'record))
       (execute-kbd-macro binding))))
 
 (defun god-mode-describe-key (initial-key)
