@@ -75,11 +75,27 @@ A third element means to treat the literal key as pressed."
   :group 'god
   :type '(alist :key-type string))
 
-(defcustom god-mode-low-priority-exempt
+
+(defcustom god-mode-low-priority-commands
   '(self-insert-command c-electric-lt-gt c-electric-brace sgml-slash)
-  "Commands that do not trigger for `god-mode-low-priority'."
+  "Commands that do not trigger for `god-mode-low-priority'.
+
+This setting has can be overridden by
+`god-mode-low-priority-command-predicate'."
   :group 'god
   :type '(repeat symbol))
+
+(defun god-mode-low-priority-command-default (command)
+  "Default logic for checking if a command should always be lower priority
+than god-mode."
+  (memq command god-mode-low-priority-commands))
+
+(defcustom god-mode-low-priority-command-predicate
+  'god-mode-low-priority-command-default
+  "Predicate to return if a command should always be low priority than
+god-mode."
+  :group 'god
+  :type 'symbol)
 
 (defcustom god-mode-is-low-priority nil
   "Whether god-mode should look for local bindings first.
@@ -222,7 +238,7 @@ return keymap, otherwise return `ignore' but load the keymap."
       (cond
        ((and binding
              (commandp binding t)
-             (not (memq binding god-mode-low-priority-exempt))
+             (not (funcall god-mode-low-priority-command-predicate binding))
              (not (eq binding 'god-mode-self-insert)))
         binding)
        ;; Load the prefix map. Note follow up keys are not handled by god-mode.
@@ -391,9 +407,13 @@ If :key is not `help-char', then return nil."
     (when (and prefix
                (or (eq help-char key)
                    (memq key help-event-list)))
+      ;; TODO: respect `prefix-help-command', which defaults to
+      ;; `describe-prefix-bindings'. However the command get the
+      ;; prefix using this-command-keys, which we can not override.
       (describe-bindings (read-kbd-macro prefix))
       (setf (god-mode--k-binding k) #'ignore)
-      (setf (god-mode--k-prefix k) (concat prefix " " (single-key-description key)))
+      (setf (god-mode--k-prefix k)
+            (concat prefix " " (single-key-description key)))
       (setf (god-mode--k-modifier k) nil)
       (setf (god-mode--k-key k) nil)
       k)))
