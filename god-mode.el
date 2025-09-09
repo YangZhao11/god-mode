@@ -217,6 +217,16 @@ If not, nothing happens."
   literal                          ; if literal key was pressed
   )
 
+(defun god-mode--k-str (k)
+  "Format K as a string, for debug purpose."
+  (format "key:%c modifier:%s prefix:%s binding:%s trace:%s literal:%s"
+          (god-mode--k-key k)
+          (god-mode--k-modifier k)
+          (god-mode--k-prefix k)
+          (god-mode--k-binding k)
+          (god-mode--k-trace k)
+          (god-mode--k-literal k)))
+
 (setq god-mode--current-state nil)
 (defun god-mode--k-init (&optional initial-key literal)
   (if (not initial-key)
@@ -426,8 +436,10 @@ Consumes more keys if needed."
         (next-modifier "")
         next-key)
     (cond
-     ;; Don't check for god-literal-key with the first key
-     ((and (god-mode--k-prefix k) (eq key god-literal-key))
+     ((and (eq key god-literal-key)      ; check for god-literal-key.
+           (god-mode--k-prefix k)        ; not on first key
+           (not (god-mode--k-literal k)) ; not already in literal mode
+       )
       (setf (god-mode--k-literal k) 't)
       (setf (god-mode--k-key k) nil))
      ((god-mode--k-literal k))         ;do nothing, key is not consumed
